@@ -37,3 +37,6 @@ vignettes/*.pdf
 
 # R Environment Variables
 .Renviron
+
+# remove covidm due to size
+/code/covidm_for_fitting
