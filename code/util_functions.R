@@ -240,146 +240,23 @@ vac_policy <- function(para,
   # (3) complete vaccinating 60+ with dose 2
   source("code/prioritisation/scenario2.R")
   
-  daily_vac_scenarios[[2]] %>%
-    pivot_longer(cols = starts_with("Y", ignore.case = F)) %>%
-    separate(name, into = c("ag", "dose"), sep = "_") %>%
-    mutate(ag = parse_number(ag)) %>%
-    ggplot(., aes(x = date, y = value)) +
-    # geom_bar(stat = "identity")+
-    geom_line()+
-    facet_grid(ag~dose)
-   
-  # tmp_tar <- c(paste0("Y", tmp_priorities[[1]]$age_group,"_d1"))
-  # for(i in 1:length(tmp_tar)){
-  #   daily_vac[daily_vac$supply_cum < pop_marker * p_change,tmp_tar[i]] <-
-  #     daily_vac[daily_vac$supply_cum < pop_marker * p_change, "supply_daily"]*
-  #     tmp_pop$n_pop[tmp_priorities[[1]]$age_group[i]]/sum(tmp_pop$n_pop[tmp_priorities[[1]]$age_group])
-  # }
-  # 
-  # 
-  # has uptake target been met yet?
-  # uptake_tar <- p_change >= 1 # TRUE: met, FALSE: not met
-  # if(!uptake_tart){
-  #   
-  # }
-  # 
-  # daily_vac_scenarios <- list()
-  # # delay scenarios among top priority groups
-  # tmp_tar <- c(paste0("Y", tmp_priorities[[1]]$age_group,"_d1"),
-  #              paste0("Y", tmp_priorities[[1]]$age_group,"_d2"))
-  # ag_tmp <- tmp_tar[i] %>% strsplit(split = "_") %>% unlist %>% .[1]
-  # # i - total number of age groups in this priority level
-  # # j - number of delays we'd like to explore
-  # 
-  # # 
-  # daily_vac_scenarios[[1]] <- list()
-  # for(j in 1:length(dose_interval)){
-  #   daily_vac_scenarios[[1]][[j]] <- daily_vac
-  #   for(i in 1:((length(tmp_tar))/2)){
-  #     daily_vac_scenarios[[1]][[j]][,tmp_tar[i+4]] <- 
-  #       lag(daily_vac[,tmp_tar[i]], dose_interval[j]*7) %>% replace(.,is.na(.), 0)
-  #     daily_vac_scenarios[[1]][[j]] %<>% 
-  #       mutate(supply_tmp = (!!as.name(tmp_tar[i])),
-  #              !!tmp_tar[i]  := supply_tmp - !!sym(tmp_tar[i+4])) %>% 
-  #       dplyr::select(-supply_tmp)
-  #   }
-  # }
-  # daily_vac_scenarios[[1]] %<>% bind_rows(.id = "dose_interval") %>% 
-  #   left_join(dose_interval %>% enframe(name = "dose_interval") %>% 
-  #               mutate(dose_interval = as.character(dose_interval)),
-  #             by = "dose_interval") %>% 
-  #   dplyr::select(-dose_interval) %>% 
-  #   rename(dose_interval = value)
-# 
-#   t_change <- min(which(daily_vac_scenarios[[1]]$supply_cum > pop_marker*p_change))
-#     
-# 
-#   
-#   pivot_longer(starts_with("Y", ignore.case = F)) %>%
-#     separate(name, into = c("ag", "dose"), sep = "_") %>% 
-#     filter(ag %in% paste0("Y",13:16)) %>% 
-#     ggplot(., aes(x = date, y = value, group = ag, color = ag)) +
-#     geom_line()+
-#     facet_grid(dose~dose_interval)
+  # scenario 3
+  # (1) start vaccinating the first phase older adults for dose 2
+  # (2) catch up on the remaining older adults 60+, for both dose 1 and 2
+  #     need to make sure the duration between dose 1 and 2 are more than 4 weeks
+  # (3) complete vaccinating other adults for dose 1
+  source("code/prioritisation/scenario3.R")
   
-  
-
-  # daily_vac_scenarios[[1]] %>% 
-  #   ggplot(., aes(x = date, y = supply)) +
-  #   geom_line()
-  
-  # t_current min(which(daily_vac$supply_cum >= pop_marker*p_change))
-  # if(is.infinite(tail(date_marker, 1))) {exhaust = F} else {exhaust = T}
-  # if(all(is.infinite(date_marker)) & length(date_marker) == 2) {np = T} else {np = F}
-  
-  date_marker <- c(as.numeric(tmp_schedule$t[2]),
-                   date_marker,
-                   nrow(daily_vac)) %>% unique %>% sort %>% .[!is.infinite(.)]
-  
-  for(i in 1:(length(date_marker)-1)) {
-    if(i == 1) {
-      daily_vac$phase[date_marker[i]] <- i
-    }
-    daily_vac$phase[(date_marker[i]+1):(date_marker[i+1])]<- i
-  }
-  
-  if(np) {end <- 1} else {end <- length(tmp_priorities)}
-  
-  for(i in 1:end){
-    tmp_ag <- paste0("Y",tmp_priorities[[i]]$age_group)
-    group_tot <- para$pop[[1]]$size[tmp_priorities[[i]]$age_group]
-    group_prop_ag <- group_tot/sum(group_tot)
-    
-    if(length(tmp_priorities) > i){
-      tmp_ag_next <-  paste0("Y",tmp_priorities[[i+1]]$age_group)
-      group_tot_next <- para$pop[[1]]$size[tmp_priorities[[i+1]]$age_group]
-      group_prop_next <- group_tot_next/sum(group_tot_next)
-    }
-    
-    if(i == 1){
-      daily_vac[((date_marker[i]):(date_marker[i+1]-1)),tmp_ag] <- 
-        sapply(1:length(group_prop_ag), 
-               function(x) group_prop_ag[x]*
-                 daily_vac[((date_marker[i]):(date_marker[i+1]-1)),
-                           "supply"]) %>% 
-        bind_cols() %>% 
-        setNames(tmp_ag)
-    } 
-    
-    if(i > 1 & date_marker[i] < nrow(daily_vac)){
-      daily_vac[((date_marker[i]+1):(date_marker[i+1]-1)),tmp_ag] <- 
-        sapply(1:length(group_prop_ag), 
-               function(x) group_prop_ag[x]*
-                 daily_vac[((date_marker[i]+1):(date_marker[i+1]-1)),
-                           "supply"]) %>% 
-        bind_cols() %>% 
-        setNames(tmp_ag)
-    }
-    
-    if(date_marker[i] < nrow(daily_vac)){
-      remainder <- sum(pop_cap[[i]]) - daily_vac[,tmp_ag] %>% 
-        colSums(., na.rm = T) %>% sum
-      supply <- daily_vac[date_marker[i+1],"supply"]
-      daily_vac[date_marker[i+1], tmp_ag] <- as.list(remainder*group_prop_ag)
-      
-      if(length(tmp_priorities) > i){
-        daily_vac[date_marker[i+1], tmp_ag_next] <- 
-          as.list(group_prop_next*unlist((supply - remainder)))
-        
-      }
-    }
-    
-  }
-  
-  # Highlight the exception
-  # If the vaccine supply has yet to saturated the population, we will replace 
-  # the last row with the row before, because the last row cannot mop up what's 
-  # happening before hand
-  
-  if(!exhaust){
-    daily_vac[nrow(daily_vac), paste0("Y",1:16)] <- 
-      daily_vac[nrow(daily_vac)-1, paste0("Y",1:16)] 
-  }
+  # daily_vac_scenarios[[3]] %>%
+  #   pivot_longer(cols = starts_with("Y", ignore.case = F)) %>%
+  #   separate(name, into = c("ag", "dose"), sep = "_") %>%
+  #   mutate(ag = parse_number(ag)) %>%
+  #   filter(ag > 4) %>% 
+  #   ggplot(., aes(x = date, y = value)) +
+  #   # geom_bar(stat = "identity")+
+  #   geom_line()+
+  #   # geom_point() +
+  #   facet_grid(ag~dose)
   
   # putting all vaccine policy related raw parameters back together
   daily_vac %>% 

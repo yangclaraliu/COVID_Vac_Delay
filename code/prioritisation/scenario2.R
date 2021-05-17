@@ -53,3 +53,45 @@ for(i in 1:length(tmp_tar2)){
 }
 
 rm(t_marker, t_marker2, t_marker3)
+
+daily_vac_scenarios[[2]] %>%
+  dplyr::select(ends_with(c("_d1", "_d2", "SV2", "VV2")), date) %>%
+  pivot_longer(cols = starts_with(c("Y"), ignore.case = F)) %>%
+  separate(name, into = c("ag", "dose", "metric"), sep = "_") %>%
+  filter(ag > 4) %>%
+  mutate(ag = parse_number(ag) %>% factor) %>%
+  unite("metric", c(dose, metric))%>%
+  #filter(metric %in% c("d1_eff", "d1_NA")) %>%
+  ggplot(., aes(x = date, y = value, color = ag, group = ag)) +
+  # geom_bar(stat = "identity")+
+  geom_line()+
+  # geom_point() +
+  facet_wrap(~metric, ncol = 1, scales = "free")
+
+matrix(0, 
+       ncol = length(para$pop[[1]]$size),
+       nrow = max(as.numeric(tmp_schedule$t), na.rm = T)) %>% 
+  as_tibble() %>% 
+  setNames(paste0("Y",1:16, "_d1_VV2")) %>%
+  # record the one that effectively still remains in V
+  bind_cols(matrix(0, 
+                   ncol = length(para$pop[[1]]$size),
+                   nrow = max(as.numeric(tmp_schedule$t), na.rm = T)) %>% 
+              as_tibble() %>% 
+              setNames(paste0("Y",1:16, "_d1_SV2"))) %>%
+  bind_cols(., daily_vac_scenarios[[1]]) -> daily_vac_scenarios[[1]]
+
+for(i in 1:length(para$pop[[1]]$group_names)){
+  tag1 <- paste0("Y",i,"_d1")
+  tag2 <- paste0("Y",i,"_d2")
+  tag3 <- paste0("Y",i,"_d1_SV2")
+  tag4 <- paste0("Y",i,"_d1_VV2")
+  
+  for(j in 2:nrow(daily_vac_scenarios[[1]])){
+    #_eff
+    daily_vac_scenarios[[1]][j, tag3] <- 
+      (daily_vac_scenarios[[1]][j, tag2])*(para$pop[[1]]$wv[1])
+    daily_vac_scenarios[[1]][j, tag4] <-
+      (daily_vac_scenarios[[1]][j, tag2])*(1 - para$pop[[1]]$wv[1])
+  }
+}
