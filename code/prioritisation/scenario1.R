@@ -82,36 +82,44 @@ for(i in 5:length(para$pop[[1]]$group_names)){
   tag4 <- paste0("Y",i,"_d1_V")
   tag5 <- paste0("Y",i,"_d1_SV2")
   tag6 <- paste0("Y",i,"_d1_VV2")
+  p_wane <- para$pop[[1]]$wv[1]#1-exp(-para$pop[[1]]$wv[1])
   
+  # phase 1, only vaccinating 60+ 
   for(j in 2:max(t_marker)){
-    # new S
-    daily_vac_scenarios[[1]][j, tag3] <- 
-      (daily_vac_scenarios[[1]][j-1, tag4] +
-         daily_vac_scenarios[[1]][j, tag1])*(para$pop[[1]]$wv[1])
-    # new V
+    # new V = newly vaccinated + those who didn't wane
     daily_vac_scenarios[[1]][j, tag4] <- 
-      (daily_vac_scenarios[[1]][j-1, tag4] +
-         daily_vac_scenarios[[1]][j, tag1])*(1-para$pop[[1]]$wv[1])
+      daily_vac_scenarios[[1]][j, tag1] + daily_vac_scenarios[[1]][j-1, tag4]*(1-p_wane)
+    # new S waned back from V1
+    daily_vac_scenarios[[1]][j, tag3] <- 
+      daily_vac_scenarios[[1]][j-1, tag4]*p_wane
   }
   
+  # convert those waned from V1 to S from daily to cumulative measure
   daily_vac_scenarios[[1]][, tag3]  <- 
     cumsum(daily_vac_scenarios[[1]][, tag3])
   
-  daily_vac_scenarios[[1]][max(t_marker) + 1, tag5] <- 
-    daily_vac_scenarios[[1]][max(t_marker) + 1, tag2]
-  daily_vac_scenarios[[1]][max(t_marker) + 1, tag2] <- 0
-  daily_vac_scenarios[[1]][max(t_marker) + 1, tag4] <-
-    daily_vac_scenarios[[1]][max(t_marker), tag4] 
+  # after vaccinating everyone with the first dose, move on to allocating d2
+  # starting from SV2
+  # daily_vac_scenarios[[1]][max(t_marker) + 1, tag4] <-
+  #   daily_vac_scenarios[[1]][max(t_marker), tag4]*(1-para$pop[[1]]$wv[1])
+  # 
+  # daily_vac_scenarios[[1]][max(t_marker) + 1, tag3] <-
+  #   daily_vac_scenarios[[1]][max(t_marker), tag3] +
+  #   daily_vac_scenarios[[1]][max(t_marker), tag4]*(para$pop[[1]]$wv[1]) -
+  #   daily_vac_scenarios[[1]][max(t_marker) + 1, tag2]
+  # 
+  # daily_vac_scenarios[[1]][max(t_marker) + 1, tag5] <- 
+  #   daily_vac_scenarios[[1]][max(t_marker) + 1, tag2]
   
   if(i >= 13){
-    k = max(t_marker) + 2
+    k = max(t_marker) + 1
     repeat{
       daily_vac_scenarios[[1]][k, tag4] <-
-        (daily_vac_scenarios[[1]][k-1, tag4])*(1-para$pop[[1]]$wv[1])
+        (daily_vac_scenarios[[1]][k-1, tag4])*(1-p_wane)
       
       daily_vac_scenarios[[1]][k, tag3] <-
         daily_vac_scenarios[[1]][k-1, tag3] +
-        (daily_vac_scenarios[[1]][k, tag4])*(para$pop[[1]]$wv[1]) -
+        (daily_vac_scenarios[[1]][k, tag4])*(p_wane) -
         daily_vac_scenarios[[1]][k, tag2]
       
       daily_vac_scenarios[[1]][k, tag5] <-
@@ -123,56 +131,68 @@ for(i in 5:length(para$pop[[1]]$group_names)){
         
         daily_vac_scenarios[[1]][k, tag5] <-
           daily_vac_scenarios[[1]][k-1, tag3] +
-          (daily_vac_scenarios[[1]][k, tag4])*(para$pop[[1]]$wv[1])
+          (daily_vac_scenarios[[1]][k, tag4])*(p_wane)
         
         daily_vac_scenarios[[1]][k, tag6] <-
           daily_vac_scenarios[[1]][k, tag2] -
           (daily_vac_scenarios[[1]][k, tag5])
         
         daily_vac_scenarios[[1]][k, tag4] <-
-          (daily_vac_scenarios[[1]][k-1, tag4])*(1-para$pop[[1]]$wv[1]) - 
+          (daily_vac_scenarios[[1]][k-1, tag4])*(1-p_wane) - 
           daily_vac_scenarios[[1]][k, tag6]
         k = k+1
         break
       }
       k = k+1
     }
+    
     daily_vac_scenarios[[1]][k:nrow(daily_vac_scenarios[[1]]), tag3] <- 0
     
     repeat{
       # flux changes to V, waning out and then vaccinate out
       daily_vac_scenarios[[1]][k, tag4] <-
-        (daily_vac_scenarios[[1]][k-1, tag4])*(1-para$pop[[1]]$wv[1]) -
-        daily_vac_scenarios[[1]][k, tag2]
+        (daily_vac_scenarios[[1]][k-1, tag4])*(1-p_wane) -
+        (daily_vac_scenarios[[1]][k, tag2] - 
+           daily_vac_scenarios[[1]][k-1, tag4]*(p_wane))
       
+      daily_vac_scenarios[[1]][k, tag3] <-
+        (daily_vac_scenarios[[1]][k-1, tag4])*(p_wane) -
+        (daily_vac_scenarios[[1]][k-1, tag4])*(p_wane)
+        
       # flux change to SV2 path
       daily_vac_scenarios[[1]][k, tag5] <-
-        (daily_vac_scenarios[[1]][k, tag4])*(para$pop[[1]]$wv[1])
+        (daily_vac_scenarios[[1]][k-1, tag4])*(p_wane)
       
       # flux change to VV2 path 
       daily_vac_scenarios[[1]][k, tag6] <-
         (daily_vac_scenarios[[1]][k, tag2]) - 
-        (daily_vac_scenarios[[1]][k, tag4])*(para$pop[[1]]$wv[1])
+        (daily_vac_scenarios[[1]][k-1, tag4])*(p_wane)
       
-      if(k > max(t_marker2)){
+      if(daily_vac_scenarios[[1]][k, tag4] < 0 |
+         is.na(daily_vac_scenarios[[1]][k, tag4])){
+        k = k + 1
+        daily_vac_scenarios[[1]][k, tag6] <-
+          (daily_vac_scenarios[[1]][k, tag2])
         break
       }
-      
       k = k + 1
     }
+    
   }
-  
 }
 
 
 daily_vac_scenarios[[1]] %>%
+  # group_by(date, t) %>%
+  # summarise_at(vars(ends_with(c("SV2", "VV2","_d2","supply_daily"))),
+  #              sum) %>%
+  # dplyr::select(-starts_with(c("Y1_","Y2_","Y3_","Y4_", paste0("Y",5:12)))) %>% View()
   dplyr::select(ends_with(c("_d1", "_d2", "SV2", "VV2", "V", "S")), date) %>%
   pivot_longer(cols = starts_with(c("Y"), ignore.case = F)) %>%
   separate(name, into = c("ag", "dose", "metric"), sep = "_") %>%
-  mutate(ag = parse_number(ag) %>% factor, 
-         value = if_else(value < 0, 0, value)) %>%
+  mutate(ag = parse_number(ag) %>% factor) %>%
   filter(ag %in% c(13:16)) %>%
-  unite("metric", c(dose, metric))%>% 
+  unite("metric", c(dose, metric))%>%
   mutate(metric = factor(metric,
                          levels = c("d1_NA", "d2_NA", "d1_S", "d1_V",
                                     "d1_SV2", "d1_VV2"),
@@ -181,7 +201,7 @@ daily_vac_scenarios[[1]] %>%
                                     "S from Dose 1 Waning",
                                     "Protected by V1",
                                     "S --> V2",
-                                    "V1 --> V2"))) %>% 
+                                    "V1 --> V2"))) %>%
   #filter(metric %in% c("d1_eff", "d1_NA")) %>%
   ggplot(., aes(x = date, y = value, color = ag, group = ag)) +
   # geom_bar(stat = "identity")+
@@ -189,3 +209,21 @@ daily_vac_scenarios[[1]] %>%
   # geom_point() +
   facet_wrap(~metric, ncol = 1, scales = "free")
 
+daily_vac_scenarios[[1]]$Y16_d1 %>% plot
+
+sum(round((daily_vac_scenarios[[1]]$Y16_d2),2))
+pop_cap[[1]][4]
+
+
+a <- round((daily_vac_scenarios[[1]]$Y16_d2),2)
+b <- round(daily_vac_scenarios[[1]]$Y16_d1_SV2 + (daily_vac_scenarios[[1]]$Y16_d1_VV2),2)
+sum(a)
+sum(b)
+sum(a)-sum(b)
+
+where_diff <- which(!a==b)
+a[where_diff]
+b[where_diff]
+
+daily_vac_scenarios[[1]][max(t_marker2), "supply_cum"]
+pop_marker[[1]]*2
