@@ -246,52 +246,97 @@ vac_policy <- function(para,
   #     need to make sure the duration between dose 1 and 2 are more than 4 weeks
   # (3) complete vaccinating other adults for dose 1
   source("code/prioritisation/scenario3.R")
-  
-  # daily_vac_scenarios[[3]] %>%
-  #   pivot_longer(cols = starts_with("Y", ignore.case = F)) %>%
-  #   separate(name, into = c("ag", "dose"), sep = "_") %>%
-  #   mutate(ag = parse_number(ag)) %>%
-  #   filter(ag > 4) %>% 
-  #   ggplot(., aes(x = date, y = value)) +
-  #   # geom_bar(stat = "identity")+
-  #   geom_line()+
-  #   # geom_point() +
-  #   facet_grid(ag~dose)
-  
-  # putting all vaccine policy related raw parameters back together
-  daily_vac %>% 
-    mutate(t = as.numeric(t)) %>% 
-    group_by(phase) %>% group_split() %>% 
+
+  vac_para <- list()
+  # S --> V1
+  daily_vac_scenarios %>% 
+    map(select, t, ends_with("d1"), date, supply_daily, supply_cum) %>% 
+    bind_rows(.id = "scenario") %>% 
+    group_by(supply_daily, scenario) %>% group_split() %>% 
     map(group_by_at, vars(starts_with("Y"))) %>% 
     map(filter, t == min(t)) %>% 
-    bind_rows() -> vac_para
+    bind_rows() %>% group_by(scenario) %>% group_split() -> vac_para[[1]]
   
+  # S --> V2
+  daily_vac_scenarios %>% 
+    map(select, t, ends_with("SV2"), date, supply_daily, supply_cum) %>% 
+    bind_rows(.id = "scenario") %>% 
+    group_by(supply_daily, scenario) %>% group_split() %>% 
+    map(group_by_at, vars(starts_with("Y"))) %>% 
+    map(filter, t == min(t)) %>% 
+    bind_rows() %>% group_by(scenario) %>% group_split() -> vac_para[[2]]
+  
+  # V --> V2
+  daily_vac_scenarios %>% 
+    map(select, t, ends_with("VV2"), date, supply_daily, supply_cum) %>% 
+    bind_rows(.id = "scenario") %>% 
+    group_by(supply_daily, scenario) %>% group_split() %>% 
+    map(group_by_at, vars(starts_with("Y"))) %>% 
+    map(filter, t == min(t)) %>% 
+    bind_rows() %>% group_by(scenario) %>% group_split() -> vac_para[[3]]
+
+  vacc_vals <- list()
   # then convert these parameters to a format that's friendly with `covidm`
   # allocation
-  vac_para %>% 
-    dplyr::select(starts_with("Y")) %>% 
-    split(seq(nrow(vac_para))) %>% 
-    map(unlist) %>% 
-    map(as.vector) -> vacc_vals
+  for(i in 1:3){
+    vacc_vals[[i]] <- list()
+    for(j in 1:3){
+      vac_para[[i]][[j]] %>% 
+        select(starts_with("Y", ignore.case = T)) %>% 
+        split(seq(nrow( vac_para[[i]][[j]] ))) %>% 
+        map(unlist) %>% 
+        map(as.vector) -> vacc_vals[[i]][[j]] 
+    }
+  }
+
   
   # timing
-  vacc_times <- vac_para$t %>% as.numeric; vacc_times[1] <- 0
   
-  para$schedule[["vaccination"]] = list(
-    parameter = "v",
-    pops = numeric(),
-    mode = "assign",
-    values = vacc_vals,
-    times = vacc_times)
+  vacc_times <- list()
+  # then convert these parameters to a format that's friendly with `covidm`
+  # allocation
+  for(i in 1:3){
+    vacc_times[[i]] <- list()
+    for(j in 1:3){
+      vac_para[[i]][[j]] %>% 
+        pull(t) %>% 
+        as.numeric -> vacc_times[[i]][[j]] 
+      vacc_times[[i]][[j]][1] <- 0
+    }
+  }
   
-  daily_vac %<>% 
-    rename(doses_daily = supply,
-           supply = supply_cum) %>% 
-    mutate(date = as.Date(date_start) + as.numeric(t)) %>% 
-    dplyr::select(-phase)
+  res <- list()
+  for(i in 1:3){
+    res[[i]] <- para
+    res[[i]]$schedule[["SV1"]] =  
+      list(
+      parameter = "v",
+      pops = numeric(),
+      mode = "assign",
+      values = vacc_vals[[1]][[i]],
+      times = vacc_times[[1]][[i]]
+      )
+    
+    res[[i]]$schedule[["SV2"]] =  
+      list(
+        parameter = "v2",
+        pops = numeric(),
+        mode = "assign",
+        values = vacc_vals[[2]][[i]],
+        times = vacc_times[[2]][[i]]
+      )
+    
+    res[[i]]$schedule[["VV2"]] =  
+      list(
+        parameter = "v12",
+        pops = numeric(),
+        mode = "assign",
+        values = vacc_vals[[3]][[i]],
+        times = vacc_times[[3]][[i]]
+      )
+  }
   
   return(list(param = para, 
-              supply = tmp_schedule,
-              vac_para = vac_para,
-              daily_vac = daily_vac))
+              p_supply = p_supply,
+              daily_vac_scenarios = daily_vac_scenarios))
 }

@@ -23,8 +23,9 @@ daily_vac_scenarios[[2]][max(t_marker)+1,tmp_tar] <-
 # tmp2_tar2 <- c(paste0("Y", tmp_priorities[[2]]$age_group,"_d2"))
 # tmp2_pop_prop <- tmp_pop$n_pop[tmp_priorities[[2]]$age_group]/sum(tmp_pop$n_pop[tmp_priorities[[2]]$age_group])
 daily_vac_scenarios[[2]][max(t_marker)+1,tmp2_tar] <- 
-  as.list(tmp2_pop_prop*unlist(daily_vac_scenarios[[2]][max(t_marker2)+1,"supply_daily"] - 
+  as.list(tmp2_pop_prop*unlist(daily_vac_scenarios[[2]][max(t_marker)+1,"supply_daily"] - 
                                  sum(daily_vac_scenarios[[2]][max(t_marker)+1,tmp_tar])))
+
 # allocate dose 1 to other adults
 t_marker2 <- which(daily_vac_scenarios[[2]]$supply_cum < pop_marker[[1]] +
                      pop_marker[[2]]) %>% 
@@ -93,13 +94,10 @@ for(i in 5:length(para$pop[[1]]$group_names)){
       daily_vac_scenarios[[2]][j, tag1] + daily_vac_scenarios[[2]][j-1, tag4]*(1-p_wane)
     # new S waned back from V1
     daily_vac_scenarios[[2]][j, tag3] <- 
+      daily_vac_scenarios[[2]][j-1, tag3] +
       daily_vac_scenarios[[2]][j-1, tag4]*p_wane
   }
   
-  # convert those waned from V1 to S from daily to cumulative measure
-  daily_vac_scenarios[[2]][, tag3]  <- 
-    cumsum(daily_vac_scenarios[[2]][, tag3])
-
   if(i >= 13){
     k = max(t_marker2) + 1
     repeat{
@@ -117,19 +115,26 @@ for(i in 5:length(para$pop[[1]]$group_names)){
       if(daily_vac_scenarios[[2]][k, tag3] < 0 |
          is.na(daily_vac_scenarios[[2]][k, tag3])|
          k >= nrow(daily_vac_scenarios[[2]])){
-        daily_vac_scenarios[[2]][k, tag3] <- 0
+        
+        # daily_vac_scenarios[[2]][k, tag3] <- 0
+        daily_vac_scenarios[[2]][k, tag3] <-
+          daily_vac_scenarios[[2]][k-1, tag3] +
+          (daily_vac_scenarios[[2]][k-1, tag4])*(p_wane)
+        
+        daily_vac_scenarios[[2]][k, tag4] <-
+          (daily_vac_scenarios[[2]][k-1, tag4])*(1-p_wane)
+        
 
         daily_vac_scenarios[[2]][k, tag5] <-
-          daily_vac_scenarios[[2]][k-1, tag3] +
-          (daily_vac_scenarios[[2]][k, tag4])*(p_wane)
+          daily_vac_scenarios[[2]][k, tag2]
+          # daily_vac_scenarios[[2]][k-1, tag3] +
+          # (daily_vac_scenarios[[2]][k, tag4])*(p_wane)
 
-        daily_vac_scenarios[[2]][k, tag6] <-
-          daily_vac_scenarios[[2]][k, tag2] -
-          (daily_vac_scenarios[[2]][k, tag5])
+        daily_vac_scenarios[[2]][k, tag6] <- 0
+          # daily_vac_scenarios[[2]][k, tag2] -
+          # (daily_vac_scenarios[[2]][k, tag5])
 
-        daily_vac_scenarios[[2]][k, tag4] <-
-          (daily_vac_scenarios[[2]][k-1, tag4])*(1-p_wane) -
-          daily_vac_scenarios[[2]][k, tag6]
+
         break
       }
       k = k+1
@@ -169,22 +174,22 @@ for(i in 5:length(para$pop[[1]]$group_names)){
   }
 }
 
-daily_vac_scenarios[[2]] %>%
-  dplyr::select(ends_with(c("_d1", "_d2", "S","V","SV2", "VV2")), date) %>%
-  pivot_longer(cols = starts_with(c("Y"), ignore.case = F)) %>%
-  separate(name, into = c("ag", "dose", "metric"), sep = "_") %>%
-  filter(ag > 4) %>%
-  mutate(ag = parse_number(ag) %>% factor) %>%
-  unite("metric", c(dose, metric))%>%
-  #filter(metric %in% c("d1_eff", "d1_NA")) %>%
-  ggplot(., aes(x = date, y = value, color = ag, group = ag)) +
-  # geom_bar(stat = "identity")+
-  geom_line()+
-  # geom_point() +
-  facet_wrap(~metric, ncol = 1, scales = "free")
-
-# a <- round((daily_vac_scenarios[[2]]$Y16_d2),2)
-# b <- round(daily_vac_scenarios[[2]]$Y16_d1_SV2 + (daily_vac_scenarios[[2]]$Y16_d1_VV2),2)
+# daily_vac_scenarios[[2]] %>%
+#   dplyr::select(ends_with(c("_d1", "_d2", "S","V","SV2", "VV2")), date) %>%
+#   pivot_longer(cols = starts_with(c("Y"), ignore.case = F)) %>%
+#   separate(name, into = c("ag", "dose", "metric"), sep = "_") %>%
+#   filter(ag > 4) %>%
+#   mutate(ag = parse_number(ag) %>% factor) %>%
+#   unite("metric", c(dose, metric))%>%
+#   #filter(metric %in% c("d1_eff", "d1_NA")) %>%
+#   ggplot(., aes(x = date, y = value, color = ag, group = ag)) +
+#   # geom_bar(stat = "identity")+
+#   geom_line()+
+#   # geom_point() +
+#   facet_wrap(~metric, ncol = 1, scales = "free")
+# # 
+# a <- round((daily_vac_scenarios[[2]]$Y13_d2),2)
+# b <- round(daily_vac_scenarios[[2]]$Y13_d1_SV2 + (daily_vac_scenarios[[2]]$Y13_d1_VV2),2)
 # sum(a,na.rm = T)
 # sum(b)
 # sum(a)-sum(b)
@@ -195,4 +200,4 @@ daily_vac_scenarios[[2]] %>%
 # 
 # daily_vac_scenarios[[1]][max(t_marker2), "supply_cum"]
 # pop_marker[[1]]*2
-# 
+
