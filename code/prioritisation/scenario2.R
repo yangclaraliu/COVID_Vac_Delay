@@ -52,10 +52,125 @@ for(i in 1:length(tmp_tar2)){
     daily_vac_scenarios[[2]][t_marker3, "supply_daily"]*tmp_pop_prop[i]
 }
 
-rm(t_marker, t_marker2, t_marker3)
+# create empty rows to record things
+matrix(0, 
+       ncol = length(para$pop[[1]]$size),
+       nrow = max(as.numeric(tmp_schedule$t), na.rm = T)) %>% 
+  as_tibble() %>% 
+  setNames(paste0("Y",1:16, "_d1_S")) %>%
+  # record the one that effectively still remains in V
+  bind_cols(matrix(0, 
+                   ncol = length(para$pop[[1]]$size),
+                   nrow = max(as.numeric(tmp_schedule$t), na.rm = T)) %>% 
+              as_tibble() %>% 
+              setNames(paste0("Y",1:16, "_d1_V"))) %>%
+  bind_cols(matrix(0, 
+                   ncol = length(para$pop[[1]]$size),
+                   nrow = max(as.numeric(tmp_schedule$t), na.rm = T)) %>% 
+              as_tibble() %>% 
+              setNames(paste0("Y",1:16, "_d1_SV2"))) %>%
+  bind_cols(matrix(0, 
+                   ncol = length(para$pop[[1]]$size),
+                   nrow = max(as.numeric(tmp_schedule$t), na.rm = T)) %>% 
+              as_tibble() %>% 
+              setNames(paste0("Y",1:16, "_d1_VV2"))) %>%
+  bind_cols(., daily_vac_scenarios[[2]]) -> daily_vac_scenarios[[2]]
+
+# allocate vaccines
+for(i in 5:length(para$pop[[1]]$group_names)){
+  tag1 <- paste0("Y",i,"_d1")
+  tag2 <- paste0("Y",i,"_d2")
+  tag3 <- paste0("Y",i,"_d1_S")
+  tag4 <- paste0("Y",i,"_d1_V")
+  tag5 <- paste0("Y",i,"_d1_SV2")
+  tag6 <- paste0("Y",i,"_d1_VV2")
+  p_wane <- para$pop[[1]]$wv[1]#1-exp(-para$pop[[1]]$wv[1])
+  
+  # phase 1, only vaccinating 60+ 
+  for(j in 2:max(t_marker2)){
+    # new V = newly vaccinated + those who didn't wane
+    daily_vac_scenarios[[2]][j, tag4] <- 
+      daily_vac_scenarios[[2]][j, tag1] + daily_vac_scenarios[[2]][j-1, tag4]*(1-p_wane)
+    # new S waned back from V1
+    daily_vac_scenarios[[2]][j, tag3] <- 
+      daily_vac_scenarios[[2]][j-1, tag4]*p_wane
+  }
+  
+  # convert those waned from V1 to S from daily to cumulative measure
+  daily_vac_scenarios[[2]][, tag3]  <- 
+    cumsum(daily_vac_scenarios[[2]][, tag3])
+
+  if(i >= 13){
+    k = max(t_marker2) + 1
+    repeat{
+      daily_vac_scenarios[[2]][k, tag4] <-
+        (daily_vac_scenarios[[2]][k-1, tag4])*(1-p_wane)
+
+      daily_vac_scenarios[[2]][k, tag3] <-
+        daily_vac_scenarios[[2]][k-1, tag3] +
+        (daily_vac_scenarios[[2]][k, tag4])*(p_wane) -
+        daily_vac_scenarios[[2]][k, tag2]
+
+      daily_vac_scenarios[[2]][k, tag5] <-
+        daily_vac_scenarios[[2]][k, tag2]
+
+      if(daily_vac_scenarios[[2]][k, tag3] < 0 |
+         is.na(daily_vac_scenarios[[2]][k, tag3])|
+         k >= nrow(daily_vac_scenarios[[2]])){
+        daily_vac_scenarios[[2]][k, tag3] <- 0
+
+        daily_vac_scenarios[[2]][k, tag5] <-
+          daily_vac_scenarios[[2]][k-1, tag3] +
+          (daily_vac_scenarios[[2]][k, tag4])*(p_wane)
+
+        daily_vac_scenarios[[2]][k, tag6] <-
+          daily_vac_scenarios[[2]][k, tag2] -
+          (daily_vac_scenarios[[2]][k, tag5])
+
+        daily_vac_scenarios[[2]][k, tag4] <-
+          (daily_vac_scenarios[[2]][k-1, tag4])*(1-p_wane) -
+          daily_vac_scenarios[[2]][k, tag6]
+        break
+      }
+      k = k+1
+    }
+
+    # daily_vac_scenarios[[2]][k:nrow(daily_vac_scenarios[[2]]), tag3] <- 0
+
+    # repeat{
+    #   # flux changes to V, waning out and then vaccinate out
+    #   daily_vac_scenarios[[2]][k, tag4] <-
+    #     (daily_vac_scenarios[[2]][k-1, tag4])*(1-p_wane) -
+    #     (daily_vac_scenarios[[2]][k, tag2] -
+    #        daily_vac_scenarios[[2]][k-1, tag4]*(p_wane))
+    # 
+    #   daily_vac_scenarios[[2]][k, tag3] <-
+    #     (daily_vac_scenarios[[2]][k-1, tag4])*(p_wane) -
+    #     (daily_vac_scenarios[[2]][k-1, tag4])*(p_wane)
+    # 
+    #   # flux change to SV2 path
+    #   daily_vac_scenarios[[2]][k, tag5] <-
+    #     (daily_vac_scenarios[[2]][k-1, tag4])*(p_wane)
+    # 
+    #   # flux change to VV2 path
+    #   daily_vac_scenarios[[2]][k, tag6] <-
+    #     (daily_vac_scenarios[[2]][k, tag2]) -
+    #     (daily_vac_scenarios[[2]][k-1, tag4])*(p_wane)
+    # 
+    #   if(daily_vac_scenarios[[2]][k, tag4] < 0 |
+    #      is.na(daily_vac_scenarios[[2]][k, tag4])){
+    #     k = k + 1
+    #     daily_vac_scenarios[[2]][k, tag6] <-
+    #       (daily_vac_scenarios[[2]][k, tag2])
+    #     break
+    #   }
+    #   k = k + 1
+    # }
+  }
+}
 
 daily_vac_scenarios[[2]] %>%
-  dplyr::select(ends_with(c("_d1", "_d2", "SV2", "VV2")), date) %>%
+  dplyr::select(ends_with(c("_d1", "_d2", "S","V","SV2", "VV2")), date) %>%
   pivot_longer(cols = starts_with(c("Y"), ignore.case = F)) %>%
   separate(name, into = c("ag", "dose", "metric"), sep = "_") %>%
   filter(ag > 4) %>%
@@ -68,30 +183,16 @@ daily_vac_scenarios[[2]] %>%
   # geom_point() +
   facet_wrap(~metric, ncol = 1, scales = "free")
 
-matrix(0, 
-       ncol = length(para$pop[[1]]$size),
-       nrow = max(as.numeric(tmp_schedule$t), na.rm = T)) %>% 
-  as_tibble() %>% 
-  setNames(paste0("Y",1:16, "_d1_VV2")) %>%
-  # record the one that effectively still remains in V
-  bind_cols(matrix(0, 
-                   ncol = length(para$pop[[1]]$size),
-                   nrow = max(as.numeric(tmp_schedule$t), na.rm = T)) %>% 
-              as_tibble() %>% 
-              setNames(paste0("Y",1:16, "_d1_SV2"))) %>%
-  bind_cols(., daily_vac_scenarios[[1]]) -> daily_vac_scenarios[[1]]
-
-for(i in 1:length(para$pop[[1]]$group_names)){
-  tag1 <- paste0("Y",i,"_d1")
-  tag2 <- paste0("Y",i,"_d2")
-  tag3 <- paste0("Y",i,"_d1_SV2")
-  tag4 <- paste0("Y",i,"_d1_VV2")
-  
-  for(j in 2:nrow(daily_vac_scenarios[[1]])){
-    #_eff
-    daily_vac_scenarios[[1]][j, tag3] <- 
-      (daily_vac_scenarios[[1]][j, tag2])*(para$pop[[1]]$wv[1])
-    daily_vac_scenarios[[1]][j, tag4] <-
-      (daily_vac_scenarios[[1]][j, tag2])*(1 - para$pop[[1]]$wv[1])
-  }
-}
+# a <- round((daily_vac_scenarios[[2]]$Y16_d2),2)
+# b <- round(daily_vac_scenarios[[2]]$Y16_d1_SV2 + (daily_vac_scenarios[[2]]$Y16_d1_VV2),2)
+# sum(a,na.rm = T)
+# sum(b)
+# sum(a)-sum(b)
+# 
+# where_diff <- which(!a==b)
+# a[where_diff]
+# b[where_diff]
+# 
+# daily_vac_scenarios[[1]][max(t_marker2), "supply_cum"]
+# pop_marker[[1]]*2
+# 
