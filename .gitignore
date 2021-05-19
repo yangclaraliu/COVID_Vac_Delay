@@ -39,4 +39,4 @@ vignettes/*.pdf
 .Renviron
 
 # remove covidm due to size
-/code/covidm_for_fitting
+/code/covidm_for_fitting/build

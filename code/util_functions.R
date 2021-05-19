@@ -340,3 +340,12 @@ vac_policy <- function(para,
               p_supply = p_supply,
               daily_vac_scenarios = daily_vac_scenarios))
 }
+
+list(vacc_vals = vacc_vals, 
+     vacc_times = vacc_times, 
+     vac_para = vac_para, 
+     para = para, 
+     daily_vac_scenarios = daily_vac_scenarios, 
+     p_supply = p_supply) -> tmp
+
+write_rds(tmp, "data/data_sample_4KA.rds")
