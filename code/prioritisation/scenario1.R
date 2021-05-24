@@ -2,6 +2,7 @@
 # (1) complete vaccinating 60+ with dose 1, reaching the uptake goal 
 # (2) complete vaccinating 60+ with dose 2
 # (3) vaccinate other adults with dose 1
+
 daily_vac_scenarios <- list()
 daily_vac_scenarios[[1]] <- daily_vac
 tmp_tar <- c(paste0("Y", tmp_priorities[[1]]$age_group,"_d1"))
