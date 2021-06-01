@@ -106,11 +106,11 @@ burden_processes <- list(
 )
 
 ##### vaccine efficacy ####
-exp_ve <- function(ve, ei_v#, y
+exp_ve <- function(ve,  # overall disease-blocking effects 
+                   ei_v # overall infection-blocking effefts, y
 ){
   ed_vi <- (ve - ei_v)/(1 - ei_v)
   return(ed_vi)
-  
 }
 
 ve_tab  <- CJ(ve = c(0.5, 0.75, 0.95), ei_v = c(0, 0.25, 0.5, 0.75, 0.95)) %>% 
