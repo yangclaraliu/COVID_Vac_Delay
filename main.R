@@ -7,7 +7,7 @@ source("code/util_functions.R")
 
 
 ##### load covidm #####
-cm_path <- "code/covidm_for_fitting/"
+cm_path <- "code/covidm"
 cm_force_rebuild <- F
 cm_build_verbose <- T
 cm_version <- 2
@@ -18,10 +18,10 @@ source(paste0(cm_path, "/R/covidm.R"))
 # ei_v = infection-blocking VE
 # ed_vi = internal parameter that involves conditionality
 i = 12
-params <- gen_country_basics("Thailand") %>% 
-  update_vac_char(., 
+params <- gen_country_basics("Thailand") %>%
+  update_vac_char(.,
                   ve_i = 0.6, ve_i2 = 0.9,
-                  ve_d = 0, ve_d2 = 0) 
+                  ve_d = 0, ve_d2 = 0)
 
 params <- vac_policy(para = params,
                      # these two parameters define the supply conditions
@@ -53,12 +53,12 @@ params <- vac_policy(para = params,
 params2 <-   change_ve(params,
                        transition_start = "2021-03-15",
                        transition_end = "2021-06-15",
-                       ve_reduction = 0.1) 
+                       ve_reduction = 0.1)
 
 params3 <-   change_ve(params,
                       transition_start = "2021-03-15",
                       transition_end = "2021-06-15",
-                      ve_reduction = 0.9) 
+                      ve_reduction = 0.9)
 
 run1 = cm_simulate(params2$res[[1]])
 run2 = cm_simulate(params2$res[[2]])
@@ -68,26 +68,26 @@ run4 = cm_simulate(params3$res[[1]])
 run5 = cm_simulate(params3$res[[2]])
 run6 = cm_simulate(params3$res[[3]])
 
-run1$dynamics %>% mutate(run = 1) %>% 
-  bind_rows(run2$dynamics %>% mutate(run = 2)) %>% 
-  bind_rows(run3$dynamics %>% mutate(run = 3)) %>% 
-  bind_rows(run4$dynamics %>% mutate(run = 4)) %>% 
-  bind_rows(run5$dynamics %>% mutate(run = 5)) %>% 
-  bind_rows(run6$dynamics %>% mutate(run = 6)) %>% 
-  separate(group, into = c("LL","UL"), remove = F) %>% 
+run1$dynamics %>% mutate(run = 1) %>%
+  bind_rows(run2$dynamics %>% mutate(run = 2)) %>%
+  bind_rows(run3$dynamics %>% mutate(run = 3)) %>%
+  bind_rows(run4$dynamics %>% mutate(run = 4)) %>%
+  bind_rows(run5$dynamics %>% mutate(run = 5)) %>%
+  bind_rows(run6$dynamics %>% mutate(run = 6)) %>%
+  separate(group, into = c("LL","UL"), remove = F) %>%
   mutate(LL = as.numeric(LL),
          date = ymd(params2$param$date0) + t,
-         reduction = if_else(run %in% 4:6, 
-                             "Large Reduction", 
-                             "Small Reduction") %>% 
+         reduction = if_else(run %in% 4:6,
+                             "Large Reduction",
+                             "Small Reduction") %>%
            factor,
          scenario = case_when(run %in% c(1,4) ~ 1,
                               run %in% c(2,5) ~ 2,
                               run %in% c(3,6) ~ 3) %>% factor,
-         run = factor(run)) %>% 
+         run = factor(run)) %>%
   filter(compartment == "death_o",
          date > "2021-01-01",
-         LL > 50) %>% 
+         LL > 50) %>%
   ggplot(., aes(x = date, y = value, group = reduction, color = reduction)) +
   geom_line(size = 1.5) +
   facet_grid(scenario~group, scales = "free")
