@@ -27,10 +27,13 @@ Population::Population(Parameters& P, unsigned int pindex)
     // vaccinated & not R; v = 1 dose; v2 = 2 dose;
     Sv = vector<double>(S.size(), 0.);
     Sv2 = vector<double>(S.size(), 0.);
+    Sw = vector<double>(S.size(), 0.);
+    
     // vaccinated & R; v = 1 dose; v2 = 2 dose;
     Rv = vector<double>(S.size(), 0.);
     Rv2 = vector<double>(S.size(), 0.);
-
+    Rw = vector<double>(S.size(), 0.);
+    
     // Initial immunity
     for (unsigned int a = 0; a < S.size(); ++a) {
         double imm = 0;

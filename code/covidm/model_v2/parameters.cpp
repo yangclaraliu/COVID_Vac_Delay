@@ -5,6 +5,43 @@
 // Helpers to set parameters
 #define _CheckSet(variable) else if (name == #variable) { ParamSet(variable, value); }
 #define _CheckSetParent(P, variable) else if (P != 0 && name == #variable) { ParamSet(P->variable, value); return false; }
+#define _CheckAll()                                        \
+_CheckSet(dE)                                              \
+_CheckSet(dEv)                                             \
+_CheckSet(dIp)                                             \
+_CheckSet(dIa)                                             \
+_CheckSet(dIs)                                             \
+_CheckSet(dC)                                              \
+_CheckSet(size)                                            \
+_CheckSet(imm0)                                            \
+_CheckSet(matrices)                                        \
+_CheckSet(contact)                                         \
+_CheckSet(contact_mult)                                    \
+_CheckSet(contact_lowerto)                                 \
+_CheckSet(u)                                               \
+_CheckSet(uv)                                              \
+_CheckSet(uv2)                                             \
+_CheckSet(fIp)                                             \
+_CheckSet(fIa)                                             \
+_CheckSet(fIs)                                             \
+_CheckSet(y)                                               \
+_CheckSet(yv)                                              \
+_CheckSet(yv2)                                             \
+_CheckSet(omega)                                           \
+_CheckSet(rho)                                             \
+_CheckSet(tau)                                             \
+_CheckSet(v)                                               \
+_CheckSet(v2)                                              \
+_CheckSet(ev)                                              \
+_CheckSet(wn)                                              \
+_CheckSet(wv)                                              \
+_CheckSet(A)                                               \
+_CheckSet(B)                                               \
+_CheckSet(D)                                               \
+_CheckSet(season_A)                                        \
+_CheckSet(season_T)                                        \
+_CheckSet(season_phi)                                      \
+_CheckSetParent(parent, travel)
 
 void ParamSet(double& variable, Rcpp::RObject& value)
 {
@@ -96,40 +133,10 @@ bool PopulationParameters::Set(Parameters* parent, string& name, Rcpp::RObject& 
     if (name == "contact" || name == "contact_mult" || name == "contact_lowerto" || name == "matrices")
         needs_recalc = true;
 
-    if (false) {}
-    _CheckSet(dE)
-    _CheckSet(dEv)
-    _CheckSet(dIp)
-    _CheckSet(dIa)
-    _CheckSet(dIs)
-    _CheckSet(dC)
-    _CheckSet(size)
-    _CheckSet(imm0)
-    _CheckSet(matrices)
-    _CheckSet(contact)
-    _CheckSet(contact_mult)
-    _CheckSet(contact_lowerto)
-    _CheckSet(u)
-    _CheckSet(uv)
-    _CheckSet(fIp)
-    _CheckSet(fIa)
-    _CheckSet(fIs)
-    _CheckSet(y)
-    _CheckSet(yv)
-    _CheckSet(omega)
-    _CheckSet(rho)
-    _CheckSet(tau)
-    _CheckSet(v)
-    _CheckSet(ev)
-    _CheckSet(wn)
-    _CheckSet(wv)
-    _CheckSet(A)
-    _CheckSet(B)
-    _CheckSet(D)
-    _CheckSet(season_A)
-    _CheckSet(season_T)
-    _CheckSet(season_phi)
-    _CheckSetParent(parent, travel)
+    if (false) {
+        
+    }
+    _CheckAll()
     else
     {
         throw logic_error("Unrecognised parameter " + name + ".");
@@ -161,39 +168,7 @@ bool PopulationParameters::Set(Parameters* parent, string& name, vector<double>&
         needs_recalc = true;
 
     if (false) {}
-    _CheckSet(dE)
-    _CheckSet(dEv)
-    _CheckSet(dIp)
-    _CheckSet(dIa)
-    _CheckSet(dIs)
-    _CheckSet(dC)
-    _CheckSet(size)
-    _CheckSet(imm0)
-    //_CheckSet(matrices)
-    _CheckSet(contact)
-    _CheckSet(contact_mult)
-    _CheckSet(contact_lowerto)
-    _CheckSet(u)
-    _CheckSet(uv)
-    _CheckSet(fIp)
-    _CheckSet(fIa)
-    _CheckSet(fIs)
-    _CheckSet(y)
-    _CheckSet(yv)
-    _CheckSet(omega)
-    _CheckSet(rho)
-    _CheckSet(tau)
-    _CheckSet(v)
-    _CheckSet(ev)
-    _CheckSet(wn)
-    _CheckSet(wv)
-    _CheckSet(A)
-    _CheckSet(B)
-    _CheckSet(D)
-    _CheckSet(season_A)
-    _CheckSet(season_T)
-    _CheckSet(season_phi)
-    //_CheckSetParent(parent, travel)
+    _CheckAll()
     else
     {
         throw logic_error("Unrecognised parameter " + name + ".");

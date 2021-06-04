@@ -58,17 +58,25 @@ public:
     vector<double> contact;
     vector<double> contact_mult;
     vector<double> contact_lowerto;
+
     vector<double> u;
-    vector<double> uv; // susceptibility in vaccinees
+    vector<double> uv; // susceptibility in 1st dose vaccinees
+    vector<double> uv2; // susceptibility in 2nd dose vaccinees
+
     vector<double> fIp;
     vector<double> fIa;
     vector<double> fIs;
     vector<double> y;
-    vector<double> yv; // symptomatic rate in vaccinees
+    vector<double> yv; // symptomatic rate in 1st dose vaccinees
+    vector<double> yv2; // symptomatic rate in 2nd dose vaccinees
+    
     vector<double> omega;
     vector<double> rho;
     vector<double> tau;
+    
     vector<double> v;
+    vector<double> v2;
+    
     vector<double> ev;
     vector<double> wn;
     vector<double> wv;
