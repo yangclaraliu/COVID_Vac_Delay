@@ -47,7 +47,4 @@ void DEMCMC_Priors(Randomizer& R, Likelihood& likelihood, MCMCReporter& report,
 void Optimize_Priors(Randomizer& R, Likelihood& likelihood, MCMCReporter& report, std::vector<Distribution>& priors,
     unsigned int maxeval, double ftol_abs, bool verbose, bool in_parallel, unsigned int n_threads);
 
-void NelderMead_Priors(Randomizer& R, Likelihood& likelihood, MCMCReporter& report, std::vector<Distribution>& priors,
-    vector<double> initial, bool chebyshev, bool adaptive, bool perturb);
-
 #endif

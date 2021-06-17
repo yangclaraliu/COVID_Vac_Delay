@@ -31,17 +31,6 @@ cm_delay_gamma = function(mu, shape, t_max, t_step)
     return (data.table(t = t_points, p = heights / sum(heights)))
 }
 
-# construct a delay distribution following a lognormal distribution with true mean mu and coefficient of variation cv.
-cm_delay_lnorm = function(mu, cv, t_max, t_step)
-{
-    meanlog = log(mu / sqrt(1 + cv^2));
-    sdlog = sqrt(log(1 + cv^2));
-    t_points = seq(0, t_max, by = t_step);
-    heights = plnorm(t_points + t_step/2, meanlog, sdlog) - 
-        plnorm(pmax(0, t_points - t_step/2), meanlog, sdlog);
-    return (data.table(t = t_points, p = heights / sum(heights)))
-}
-
 # construct a delay distribution that effectively skips the compartment
 cm_delay_skip = function(t_max, t_step)
 {
@@ -136,19 +125,93 @@ cm_case_distribution = function(z, date_simulation_start, date_measurement_start
     return (dist)
 }
 
-# Calculate R0 for a given population
-cm_calc_R0 = function(parameters, population) {
-    po = parameters$pop[[population]];
-    dIp = sum(po$dIp * seq(0, by = parameters$time_step, length.out = length(po$dIp)));
-    dIs = sum(po$dIs * seq(0, by = parameters$time_step, length.out = length(po$dIs)));
-    dIa = sum(po$dIa * seq(0, by = parameters$time_step, length.out = length(po$dIa)));
-    
-    cm = Reduce('+', mapply(function(c, m) c * m, po$contact, po$matrices, SIMPLIFY = F));
-
-    ngm = po$u * t(t(cm) * (
-        po$y * (po$fIp * dIp + po$fIs * dIs) + 
-        (1 - po$y) * po$fIa * dIa)
-    )
-    abs(eigen(ngm)$values[1])
+mean_duration <- function(death_rate, dX, time_step) {
+    ts <- seq(0, by=time_step, length.out = length(dX))
+    sum(dX * ts * exp(-death_rate*ts))
 }
+
+#' compute the next-generation-matrix for a particular covidm population
+#' 
+#' @param parameters a covidm parameters object
+#' @param population which population within `parameters` to calculate
+#' @param u_multipler multiplicative modifier to susceptibility;
+#'   should be length 1 or same length as age categories
+#' @param contact_reductions modifier to contact matrices;
+#'   between 0 (no reduction) and 1 (complete reduction)
+#' @param fIs_reductions modifer to symptomatic transmission;
+#'   should be length 1 or same length as age categories
+#' @param uval numeric vector, when performing the calculation with an apply with various u values
+#' @param yval numeric vector, when performing the calculation with an apply with various y values
+#' 
+#' @return a next generation matrix
+cm_ngm <- function(
+    parameters,
+    population = 1,
+    u_multiplier = 1,
+    contact_reductions = rep(0, 4),
+    fIs_reductions = rep(0, 16),
+    fIa_reductions = rep(0, 16),
+    fIp_reductions = rep(0, 16),
+    uval = parameters$pop[[population]]$u,
+    yval = parameters$pop[[population]]$y
+) {
+    po = parameters$pop[[population]];
+    dIp = sapply(po$D, mean_duration, dX = po$dIp, time_step = parameters$time_step)
+    dIs = sapply(po$D, mean_duration, dX = po$dIs, time_step = parameters$time_step)
+    dIa = sapply(po$D, mean_duration, dX = po$dIa, time_step = parameters$time_step)
+
+    cm = Reduce('+', mapply(function(c, m, red) c * m * (1-red), po$contact, po$matrices, contact_reductions, SIMPLIFY = F));
+    
+    ngm = uval * u_multiplier * t(t(cm) * (
+        yval * (po$fIp * (1-fIp_reductions) * dIp + po$fIs * (1-fIs_reductions) * dIs) + 
+        (1 - yval) * po$fIa * (1-fIa_reductions) * dIa))
+    ngm
+}
+
+cm_eigen_ngm <- function(
+   ..., ngm = cm_ngm(...)
+) {
+    res <- eigen(ngm)
+    ss <- abs(Re(res$vector[,1])); ss <- ss/sum(ss)
+    R0 <- Re(res$values[1])
+    # the relative contribution of by age to next generation
+    frac <- rowSums(t(ngm) * ss)/R0
+    list(R0 = R0, ss = ss, frac = frac)
+}
+
+cm_generation_interval <- function(
+    innerpop,
+    fIs_reductions = rep(0, innerpop$n_groups),
+    fIa_reductions = rep(0, innerpop$n_groups),
+    fIp_reductions = rep(0, innerpop$n_groups),
+    yval,
+    eigen_vector,
+    time_step
+) {
+    dE  = sapply(innerpop$D, mean_duration, dX = innerpop$dE,  time_step = time_step)
+    dIp = sapply(innerpop$D, mean_duration, dX = innerpop$dIp, time_step = time_step)
+    dIs = sapply(innerpop$D, mean_duration, dX = innerpop$dIs, time_step = time_step)
+    dIa = sapply(innerpop$D, mean_duration, dX = innerpop$dIa, time_step = time_step)
+  
+    ave_gen <- 0
+    normev <- eigen_vector/(sum(eigen_vector))
+
+    #' f*duration propto infections associated that interval
+    #' so e.g. dIa * fIa = infection weight
+    #' (1-y) probability of having Ia
+    #' another dIa for the average time those infections occur at
+    
+    for (i in seq_along(eigen_vector)) {
+      age_i_ave <- (dE[i] + c(dIa[i]^2*(1-yval[i])*innerpop$fIa[i]*(1-fIa_reductions[i]), yval[i]*dIp[i]^2*innerpop$fIp[i]*(1-fIp_reductions[i]), yval[i]*(dIp[i]+dIs[i])*dIs[i]*innerpop$fIs[i]*(1-fIs_reductions[i])))/(
+        (1-yval[i])*innerpop$fIa[i]*(1-fIa_reductions[i])*dIa[i] + yval[i]*(innerpop$fIp[i]*(1-fIp_reductions[i])*dIp[i] + innerpop$fIs[i]*(1-fIs_reductions[i])*dIs[i])
+      )
+        ave_gen <- ave_gen +
+          normev[i] * age_i_ave
+    }
+      
+   sum(ave_gen)
+}
+
+# Calculate R0 for a given population
+cm_calc_R0 = function(parameters, population, ...) cm_eigen_ngm(parameters, population, ...)$R0
 

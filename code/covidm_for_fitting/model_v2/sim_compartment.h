@@ -33,15 +33,24 @@ public:
 
 //private:
     vector<double> lambda;
-    vector<double> N, S, R, V, V2;              // Total number, susceptible, recovered, vaccinated once, vaccinated twice 
-    vector<Compartment> E, Ea, Ip, Ia, Is, C;   // Exposed, presymptomatic, asymptomatic, symptomatic, cases (reported)
+    vector<double> N, S, R;                     // Total number, Susceptible, recovered
+    vector<double> Sv, Rv;                      // Susceptible and vaccinated, recovered and vaccinated
+    vector<double> Sv2, Rv2;                    // 2-dose: Susceptible and vaccinated, recovered and vaccinated
+    vector<double> Sw;                          // waned first dose individuals
+    vector<Compartment> E, Ev, Ev2, Ip, Ia, Is, C;   // Exposed (Exposed-and-vaccinated, & 2dosed), presymptomatic, asymptomatic, symptomatic, cases (reported)
     unsigned int seed_row;                      // Which seed event is next
     unsigned int p;                             // Which population this is
-    vector<vector<Compartment>> pc;             // User-specified process compartments, indexed by process id, then group
-    vector<unsigned int> ni_out;                // Temporary storage
-    vector<double> nd_out;                      // Temporary storage
-    vector<double> pci;                         // Temporary storage
-    vector<double> pco;                         // Temporary storage
+
+    // re-useable temporary storage for multinomial draws    
+    vector<unsigned int> ni_out;
+    vector<double> nd_out;
+    
+    // User-specified process compartments, indexed by process id, then group
+    // e.g. pc[process_id][group] is current value of process_id state for group
+    vector<vector<Compartment>> pc;
+    // re-usable temporary storage for incidence / outcidence monitoring for process states
+    vector<double> pci;
+    vector<double> pco;
 };
 
 // A metapopulation, containing multiple subpopulations.

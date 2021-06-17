@@ -7,7 +7,7 @@
 #include <limits>
 #include <string>
 #include <stdexcept>
-#include <algorithm>
+#include <omp.h>
 #include "mcmc.h"
 #include "user_defined.h"
 #include "Rcpp_interface.h"
@@ -63,10 +63,8 @@ void DEMCMC_Priors(Randomizer& R, Likelihood& likelihood, MCMCReporter& report,
     vector<vector<double>> init, int init_iter)
 {
     #ifdef _OPENMP
-        if (in_parallel && n_threads > 0) {
+        if (in_parallel && n_threads > 0)
             omp_set_num_threads(n_threads);
-            cout << "Requested fitting with " << n_threads << " threads.\n";
-        }
     #endif
 
     if (n_chains < 3)
@@ -150,7 +148,7 @@ void DEMCMC_Priors(Randomizer& R, Likelihood& likelihood, MCMCReporter& report,
         }
 
         // Prepare storage and random variates
-        bool migration = (i < burn_in * 0.75 && ((i / 100) & 1) == 0) ? R.Bernoulli(0.025) : false;
+        bool migration = i < burn_in * 0.75 ? R.Bernoulli(0.05) : false;
         vector<int> migration_indices(n_chains, 0);
         if (migration)
         {
@@ -166,7 +164,7 @@ void DEMCMC_Priors(Randomizer& R, Likelihood& likelihood, MCMCReporter& report,
             if (!migration)
             {
                 if (classic_gamma)
-                    random_gammas[c] = (i % 10 == 0 ? 1.0 : .238 / sqrt(2 * n_theta));
+                    random_gammas[c] = (i % 10 == 0 ? 1.0 : 2.38 / sqrt(2 * n_theta));
                 else
                     random_gammas[c] = R.LogNormal(-0.5, 0.5) * adjusted_stepsize; //R.Uniform(0.5, 1.0) * adjusted_stepsize;
                 do random_chains[c][0] = R.Discrete(n_chains); while (random_chains[c][0] == c);
@@ -176,15 +174,9 @@ void DEMCMC_Priors(Randomizer& R, Likelihood& likelihood, MCMCReporter& report,
         auto saved_chains = chains;
         vector<int> accept(n_chains, 0);
 
-        int n_actual_threads = 1;
         #pragma omp parallel for if(in_parallel) schedule(dynamic)
         for (int c = 0; c < n_chains; ++c)
         {
-            #ifdef _OPENMP
-            if (i == init_iter)
-                n_actual_threads = max(n_actual_threads, omp_get_num_threads());
-            #endif
-
             vector<double> theta_p = chains[c];
             int c_from = c;
 
@@ -214,10 +206,6 @@ void DEMCMC_Priors(Randomizer& R, Likelihood& likelihood, MCMCReporter& report,
                 l[c_from] = l_p;
             }
         }
-
-        // Report number of threads
-        if (i == init_iter)
-            cout << "Running with " << n_actual_threads << " threads.\n";
 
         // Update acceptances
         for (int c = 0; c < n_chains; ++c)
@@ -313,7 +301,7 @@ void Optimize_Priors(Randomizer& R, Likelihood& likelihood, MCMCReporter& report
 
     // Initialize particles
     vector<Particle> y;
-    for (unsigned int i = 0; i < np; ++i)
+    for (int i = 0; i < np; ++i)
         y.push_back(Particle(R, lb, ub, priors));
     vector<Particle> yn = y;
     Particle best = y[0];
@@ -323,16 +311,16 @@ void Optimize_Priors(Randomizer& R, Likelihood& likelihood, MCMCReporter& report
     auto target = [&](vector<double>& theta, double& l)
     {
         double p = 0;
-        // for (int i = 0; i < d; ++i)
-        // {
-        //     double pd = priors[i].LogProbability(theta[i]);
-        //     if (pd == -numeric_limits<double>::infinity())
-        //     {
-        //         l = -numeric_limits<double>::infinity();
-        //         return -numeric_limits<double>::infinity();
-        //     }
-        //     p += pd;
-        // }
+        for (int i = 0; i < d; ++i)
+        {
+            double pd = priors[i].LogProbability(theta[i]);
+            if (pd == -numeric_limits<double>::infinity())
+            {
+                l = -numeric_limits<double>::infinity();
+                return -numeric_limits<double>::infinity();
+            }
+            p += pd;
+        }
 
         l = likelihood(theta);
 
@@ -413,233 +401,4 @@ void Optimize_Priors(Randomizer& R, Likelihood& likelihood, MCMCReporter& report
     double l;
     target(best.x, l);
     report(0, best.f, 0, l, best.x);
-}
-
-
-
-// Nelder-Mead optimization
-
-// Point in the simplex
-struct Point
-{
-    Point(unsigned int n)
-     : x(n, 0.0) { }
-
-    Point(vector<double>& y)
-     : x(y) { }
-
-    vector<double> x;
-    double eval;
-
-    bool operator<(const Point& r) { return eval < r.eval; };
-};
-
-bool  operator < (const Point& l, const Point& r) { return l.eval < r.eval; }
-bool  operator <=(const Point& l, const Point& r) { return l.eval <= r.eval; }
-Point operator - (const Point& l, const Point& r) { Point p(l.x.size()); for (unsigned int i = 0; i < p.x.size(); ++i) p.x[i] = l.x[i] - r.x[i]; return p; }
-Point operator + (const Point& l, const Point& r) { Point p(l.x.size()); for (unsigned int i = 0; i < p.x.size(); ++i) p.x[i] = l.x[i] + r.x[i]; return p; }
-Point operator * (const double l, const Point& r) { Point p(r.x.size()); for (unsigned int i = 0; i < p.x.size(); ++i) p.x[i] = l      * r.x[i]; return p; }
-
-// Calculates centroid of all points in simplex except last point.
-Point nm_centroid(const vector<Point>& simplex)
-{
-    unsigned int N = simplex.size() - 1;
-    Point p(N);
-    for (unsigned int i = 0; i < N; ++i)
-        p = p + (1.0 / N) * simplex[i];
-    return p;
-}
-
-// Length of vector
-double length(const Point& p)
-{
-    double l = 0;
-    for (auto& x : p.x) 
-        l += x * x;
-    return sqrt(l);
-}
-
-// Return a random unit vector
-void random_unit_vector(Point& p, Randomizer& R)
-{
-    for (auto& x : p.x)
-        x = R.Normal(0, 1);
-    p = (1.0 / length(p)) * p;
-}
-
-
-void NelderMead_Priors(Randomizer& R, Likelihood& likelihood, MCMCReporter& report, std::vector<Distribution>& priors,
-    vector<double> initial, bool chebyshev, bool adaptive, bool perturb)
-{
-    // Working variables
-    unsigned int N = initial.size();
-    vector<Point> x(N + 1, Point(N));
-
-    // Assemble target func
-    auto target = [&](vector<double>& theta, double& l)
-    {
-        double p = 0;
-        for (unsigned int i = 0; i < N; ++i)
-        {
-            double pd = priors[i].LogProbability(theta[i]);
-            if (pd == -numeric_limits<double>::infinity())
-            {
-                l = -numeric_limits<double>::infinity();
-                return -numeric_limits<double>::infinity();
-            }
-            p += pd;
-        }
-
-        l = likelihood(theta);
-
-        return l + p;
-    };
-
-    // Set constants
-    double alpha = 1, beta = 2, gamma = 0.5, delta = 0.5;
-
-    if (chebyshev)
-    {
-        int n_c = 2 * (9 + (N - 1) / 5);
-        alpha = 1 + cos((n_c - 1.) * M_PI / (2 * n_c));
-        beta  = 1 + cos((n_c - 3.) * M_PI / (2 * n_c));
-        gamma = 1 + cos((n_c + 5.) * M_PI / (2 * n_c));
-        delta = 1 + cos((n_c + 3.) * M_PI / (2 * n_c));
-    }
-
-    if (adaptive)
-    {
-        alpha = 1.0;
-        beta  = 1.0  + 2.0 / N;
-        gamma = 0.75 - 0.5 / N;
-        delta = 1.0  - 1.0 / N;
-    }
-
-    // Helper to evaluate a point
-    double l;
-    auto eval = [&](Point& p) { p.eval = -target(p.x, l); };
-
-    // Helper to insert point N in proper place in simplex
-    auto placeN = [&](Point& p) {
-        x[N] = p;
-        unsigned int i;
-        for (i = 0; i < N; ++i) {
-            if (x[N] < x[i]) {
-                swap(x[N], x[i]);
-                break;
-            }
-        }
-        for (i = i + 1; i < N; ++i)
-            swap(x[i], x[N]);
-    };
-
-    // Initialize simplex
-    double delta_u = 0.05, delta_z = 0.0075;
-    x[0].x = initial;
-    eval(x[0]);
-    for (unsigned int i = 1; i < N + 1; ++i)
-    {
-        Point point(initial);
-        if (initial[i - 1] == 0)
-            point.x[i - 1] = delta_z;
-        else
-            point.x[i - 1] *= (1 + delta_u);
-        eval(point);
-        x[i] = point;
-    }
-
-    // Sort values
-    sort(x.begin(), x.end());
-
-    // Iterate
-    for (unsigned int j = 0; j < 10000; ++j)
-    {
-        if (j % 100 == 0)
-        {
-            cout << "Iteration " << j << ": ";
-            cout << x[0].eval << " ";
-            for (auto& y : x[0].x)
-                cout << y << " ";
-            cout << "\n";
-        }
-
-        // Check for termination
-        // tolfun: all (f(x[i]) - f(x[0]) for i > 0) <= tolfun
-        // tolx:   all (||x[i] - x[0]|| for i > 0) <= tolx
-        // i >= maxit
-        // TODO
-
-        // Calculate centroid
-        Point x_o = nm_centroid(x);
-
-        if (perturb)
-        {
-            Point x_p(N);
-            random_unit_vector(x_p, R);
-            x_o = x_o + 0.1 * length(x[N] - x[0]) * x_p;
-        }
-
-        // Reflection
-        Point x_r = x_o + alpha * (x_o - x[N]);
-        eval(x_r);
-        if (x[0] <= x_r && x_r < x[N - 1])
-        {
-            placeN(x_r);
-            continue;
-        }
-
-        // Expansion
-        if (x_r < x[0])
-        {
-            Point x_e = x_o + beta * (x_r - x_o);
-            eval(x_e);
-            if (x_e < x_r)
-                placeN(x_e);
-            else 
-                placeN(x_r);
-            continue;
-        }
-
-        // Contraction
-        Point x_c = x_o + gamma * (x[N] - x_o);
-        eval(x_c);
-        if (x_c < x[N])
-        {
-            placeN(x_c);
-            continue;
-        }
-        // if (x[N - 1] <= x_r && x_r < x[N])
-        // {
-        //     Point x_oc = x_o + gamma * (x_r - x_o);
-        //     eval(x_oc);
-        //     if (x_oc <= x_r)
-        //     {
-        //         placeN(x_oc);
-        //         continue;
-        //     }
-        // }
-        // else if (x[N] <= x_r)
-        // {
-        //     Point x_ic = x_o - gamma * (x_r - x_o);
-        //     eval(x_ic);
-        //     if (x_ic <= x[N])
-        //     {
-        //         placeN(x_ic);
-        //         continue;
-        //     }
-        // }
-
-        // Shrink
-        for (unsigned int i = 1; i < N + 1; ++i)
-        {
-            x[i] = x[0] + delta * (x[i] - x[0]);
-            eval(x[i]);
-        }
-        sort(x.begin(), x.end());
-    }
-
-    // Report back
-    eval(x[0]);
-    report(0, x[0].eval, 0, l, x[0].x);
-
 }

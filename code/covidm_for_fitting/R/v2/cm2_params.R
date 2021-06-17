@@ -1,127 +1,177 @@
 # v2/cm2_params.R
 # parameters for the model
 
+#' normalizes time inputs to model time, i.e. days since day 0
+#' 
+#' @param t a vector, numeric or translate-able to Date via `lubridate::ymd`
+#' @param date0 a scalar, translate-able to Date via `lubridate::ymd`
+#' @seealso lubridate::ymd
+#' @return a numeric vector, same length as t
+translate_time = function(t, date0) return(
+    if (is.numeric(t)) {
+        t
+    } else {
+        as.numeric(lubridate::ymd(t) - lubridate::ymd(date0));
+    }
+)
+
 # return translated parameters to work with the backend,
 # i.e. fix any times expressed in dates to be expressed in days since date0.
-cm_translate_parameters = function(p)
+cm_translate_parameters = function(p) # TODO: use `within`?
 {
-    translate_time = function(t) {
-        if (is.numeric(t)) {
-            return (t)
-        } else {
-            return (as.numeric(ymd(t) - ymd(p$date0)));
-        }
-    }
-    
-    p$time0 = translate_time(p$time0);
-    p$time1 = translate_time(p$time1);
+
+    p$time0 = translate_time(p$time0, p$date0);
+    p$time1 = translate_time(p$time1, p$date0);
     
     for (pi in seq_along(p$pop)) {
-        p$pop[[pi]]$seed_times = sapply(p$pop[[pi]]$seed_times, translate_time);
+        p$pop[[pi]]$seed_times = translate_time(p$pop[[pi]]$seed_times, p$date0);
     }
 
     for (si in seq_along(p$schedule)) {
-        p$schedule[[si]]$times = translate_time(p$schedule[[si]]$times);
+        p$schedule[[si]]$times = translate_time(p$schedule[[si]]$times, p$date0);
     }
     
+    if (is.null(p$processes)) p$processes <- NULL
+    
     return (p);
+}
+
+is_positive      <- function(x)    is.numeric(x) & all(x > 0)
+non_empty_list   <- function(x)    is.list(x) & length(x) > 0
+non_negative     <- function(x)    is.numeric(x) & all(x >= 0)
+some_positive    <- function(x)    non_negative(x) & any(x > 0)
+is_proportion    <- function(x)    is.numeric(x) & all((0 <= x) & (x <= 1))
+same_length      <- function(x, y) length(x) == length(y)
+is_square_matrix <- function(x)    is.matrix(x) & nrow(x) == ncol(x)
+in_order         <- function(x)    is.numeric(x) & !is.unsorted(x)
+
+requirements <- lapply(list(
+    "model" = "model == 'SEI3R' || model == 'household'",
+    "time_step" = "is_positive(time_step)",
+    "date0" = "lubridate::is.Date(lubridate::ymd(date0))",
+    "time0" = "is.numeric(time0)",
+    "time1" = "is.numeric(time1)",
+    "report_every" = "is.numeric(report_every) & report_every == 1. / time_step",
+    "fast_multinomial" = "is.logical(fast_multinomial)",
+    "deterministic" = "is.logical(deterministic)",
+    "pop" = "non_empty_list(pop)",
+    "travel" = "non_negative(travel) & is_square_matrix(travel) & nrow(travel) == length(parameters$pop)"
+), function(exp) parse(text = exp))
+
+population_requirements <- lapply(list(
+    "dE" = "some_positive(dE)",
+    "dIp" = "some_positive(dIp)",
+    "dIs" = "some_positive(dIs)",
+    "dIa" = "some_positive(dIa)",
+    "dC" = "some_positive(dC)",
+    "size" = "some_positive(size)",
+    "imm0" = "is_proportion(imm0) & same_length(imm0, size)",
+    "matrices" = "non_empty_list(matrices) & all(sapply(matrices, function(m) non_negative(m) & is_square_matrix(m) & nrow(m) == length(size)))",
+    "contact" = "non_negative(contact) & same_length(contact, matrices)",
+    "contact_mult" = "(length(contact_mult) == 0) | (non_negative(contact_mult) & same_length(contact_mult, matrices))",
+    "contact_lowerto" = "(length(contact_lowerto) == 0) | (non_negative(contact_lowerto) & same_length(contact_lowerto, matrices))",
+    "u" = "non_negative(u) & same_length(u, size)",
+    "y" = "non_negative(y) & same_length(y, size)",
+    "fIp" = "non_negative(fIp) & same_length(fIp, size)",
+    "fIa" = "non_negative(fIa) & same_length(fIa, size)",
+    "fIs" = "non_negative(fIs) & same_length(fIs, size)",
+    "omega" = "non_negative(omega) & same_length(omega, size)",
+    "rho" = "non_negative(rho) & same_length(rho, size)",
+    "tau" = "non_negative(tau) & same_length(tau, size)",
+    "v" = "non_negative(v) & same_length(v, size)",
+    "ev" = "is_proportion(ev) & same_length(ev, size)",
+    "wn" = "non_negative(wn) & same_length(wn, size)",
+    "wv" = "non_negative(wv) & same_length(wv, size)",
+    "A" = "non_negative(A) & same_length(A, size)",
+    "B" = "non_negative(B) & same_length(B, size)",
+    "D" = "non_negative(D) & same_length(D, size)",
+    "season_A" = "is.numeric(season_A) & length(season_A) == 1 & all(abs(season_A <= 1))",
+    "season_T" = "is.numeric(season_T) & length(season_T) == 1 & all(season_T > 0)",
+    "season_phi" = "is.numeric(season_phi) & length(season_phi) == 1",
+    "seed_times" = "in_order(seed_times)",
+    "dist_seed_ages" = "is.numeric(dist_seed_ages) & same_length(dist_seed_ages, size)",
+    "schedule" = "is.list(schedule)"
+), function(exp) parse(text = exp))
+
+population_optionals <- lapply(list(
+    "dEv" = "some_positive(dEv)",
+    "dEv2" = "some_positive(dEv2)",
+    "uv" = "non_negative(uv) & same_length(uv, size)",
+    "uv2" = "non_negative(uv2) & same_length(uv2, size)",
+    "yv" = "non_negative(yv) & same_length(yv, size)",
+    "yv2" = "non_negative(yv2) & same_length(yv2, size)"
+), function(exp) parse(text = exp))
+
+optional_substitutes <- c(
+    "dEv" = "dE",
+    "dEv2" = "dE",
+    "uv" = "u",
+    "uv2" = "u",
+    "yv" = "y",
+    "yv2" = "y",
+    "v2" = "v"
+)
+
+req = function(
+    requirements, parameters,
+    existfmt = "Parameter '%s' required, but not found.",
+    testfmt = "Parameter check '%s' failed."
+)
+{
+    missed <- setdiff(names(requirements), names(parameters))
+    if (length(missed)) stop(paste0(c("", sprintf(existfmt, missed)), collapse = "\n"))
+    checks <- requirements[sapply(requirements, function(req, parameters) !eval(req, parameters), parameters = parameters)]
+    if (length(checks)) stop(paste0(c("", sprintf(testfmt, checks)), collapse = "\n"))
+}
+
+opts <- function(
+    requirements, parameters,
+    substitutes,
+    existfmt = "Optional parameter '%s' not found; using default substitute parameter '%s'.",
+    testfmt = "Parameter check '%s' failed."
+)
+{
+    missed <- setdiff(names(requirements), names(parameters))
+    if (length(missed)) warning(
+        paste0(c("", sprintf(existfmt, missed, substitutes[missed])), collapse = "\n")
+    ) 
+    for (par in missed) parameters[[par]] <- parameters[[substitutes[par]]]
+    offered <- setdiff(names(requirements), missed)
+    if (length(offered)) {
+        checks <- requirements[sapply(requirements[offered], function(req, parameters) !eval(req, parameters), parameters = parameters)]
+        if (length(checks)) stop(paste0(c("", sprintf(testfmt, checks)), collapse = "\n"))
+    }
+    return(parameters)
 }
 
 # check parameters for validity.
 cm_check_parameters = function(parameters)
 {
-    req = function(v, x)
-    {
-        if (!exists(v, parameters)) {
-            stop(paste0("Parameter ", v, " required, but not found."));
-        } else if (!eval(parse(text = x), parameters)) {
-            stop(paste0("Parameters check: ", x, " failed."));
-        }
-    }
-    
-    reqp = function(i, v, x)
-    {
-        if (!exists(v, parameters$pop[[i]])) {
-            stop(paste0("Population parameter ", v, " required, but not found in population ", i, "."));
-        } else if (!eval(parse(text = x), parameters$pop[[i]])) {
-            stop(paste0("Parameters check: ", x, " failed in population ", i, "."));
-        }
-    }
-
-    req("model",            "model == 'SEI3R' || model == 'household'");
-    req("time_step",        "is.numeric(time_step) & time_step > 0");
-    req("date0",            "is.Date(ymd(date0))");
-    req("time0",            "is.numeric(time0)");
-    req("time1",            "is.numeric(time1)");
-    req("report_every",     "is.numeric(report_every) & report_every == 1. / time_step");
-    req("fast_multinomial", "is.logical(fast_multinomial)");
-    req("deterministic",    "is.logical(deterministic)");
-    req("pop",              "is.list(pop) & length(pop) > 0");
-    req("travel",           "is.matrix(travel) & all(travel >= 0) & nrow(travel) == length(parameters$pop) & ncol(travel) == nrow(travel)");
-    
-    for (i in 1:length(parameters$pop))
-    {
-        reqp(i, "dE",   "is.numeric(dE) & all(dE >= 0) & any(dE > 0)");
-        reqp(i, "dEa",  "is.numeric(dEa) & all(dEa >= 0) & any(dEa > 0)");
-        reqp(i, "dIp",  "is.numeric(dIp) & all(dIp >= 0) & any(dIp > 0)");
-        reqp(i, "dIs",  "is.numeric(dIs) & all(dIs >= 0) & any(dIs > 0)");
-        reqp(i, "dIa",  "is.numeric(dIa) & all(dIa >= 0) & any(dIa > 0)");
-        reqp(i, "dC",   "is.numeric(dC) & all(dC >= 0) & any(dC > 0)");
-        reqp(i, "size", "is.numeric(size) & all(size >= 0) & any(size > 0)");
-        reqp(i, "imm0", "is.numeric(imm0) & length(imm0) == length(size) & all(imm0 >= 0) & all(imm0 <= 1)");
-        reqp(i, "matrices", "is.list(matrices) & length(matrices) > 0");
-        for (m in 1:length(parameters$pop[[i]]$matrices))
-        {
-            reqp(i, "matrices", sprintf("is.matrix(matrices[[%d]]) & all(matrices[[%d]] >= 0) & nrow(matrices[[%d]]) == length(size) & ncol(matrices[[%d]]) == nrow(matrices[[%d]])", m, m, m, m, m));
-        }
-        reqp(i, "contact",         "is.numeric(contact) & length(contact) == length(matrices) & all(contact >= 0)");
-        reqp(i, "contact_mult",    "(is.numeric(contact_mult) & length(contact_mult) == length(matrices) & all(contact_mult >= 0)) | length(contact_mult) == 0");
-        reqp(i, "contact_lowerto", "(is.numeric(contact_lowerto) & length(contact_lowerto) == length(matrices) & all(contact_lowerto >= 0)) | length(contact_lowerto) == 0");
-        
-        reqp(i, "u",       "is.numeric(u) & length(u) == length(size) & all(u >= 0)");
-        reqp(i, "y",       "is.numeric(y) & length(y) == length(size) & all(y >= 0)");
-        reqp(i, "fIp",     "is.numeric(fIp) & length(fIp) == length(size) & all(fIp >= 0)");
-        reqp(i, "fIa",     "is.numeric(fIa) & length(fIa) == length(size) & all(fIa >= 0)");
-        reqp(i, "fIs",     "is.numeric(fIs) & length(fIs) == length(size) & all(fIs >= 0)");
-        reqp(i, "omega",   "is.numeric(omega) & length(omega) == length(size) & all(omega >= 0)");
-        reqp(i, "rho",     "is.numeric(rho) & length(rho) == length(size) & all(rho >= 0)");
-        reqp(i, "tau",     "is.numeric(tau) & length(tau) == length(size) & all(tau >= 0)");
-        reqp(i, "v",       "is.numeric(v) & length(v) == length(size) & all(v >= 0)");
-        reqp(i, "v12",     "is.numeric(v12) & length(v12) == length(size) & all(v12 >= 0)");
-        reqp(i, "v2",      "is.numeric(v2) & length(v2) == length(size) & all(v2 >= 0)");
-        reqp(i, "ev",      "is.numeric(ev) & length(ev) == length(size) & all(ev >= 0) & all(ev <= 1)");
-        reqp(i, "ei_v",    "is.numeric(ei_v) & length(ei_v) == length(size) & all(ei_v >= 0) & all(ei_v <= 1)");
-        reqp(i, "ed_vi",   "is.numeric(ed_vi) & length(ed_vi) == length(size) & all(ed_vi >= 0) & all(ed_vi <= 1)");
-        reqp(i, "ev2",     "is.numeric(ev2) & length(ev2) == length(size) & all(ev2 >= 0) & all(ev2 <= 1)");
-        reqp(i, "ei_v2",   "is.numeric(ei_v2) & length(ei_v2) == length(size) & all(ei_v2 >= 0) & all(ei_v2 <= 1)");
-        reqp(i, "ed_vi2",  "is.numeric(ed_vi2) & length(ed_vi2) == length(size) & all(ed_vi2 >= 0) & all(ed_vi2 <= 1)");
-        reqp(i, "pi_r",    "is.numeric(pi_r) & length(pi_r) == length(size) & all(pi_r >= 0) & all(pi_r <= 1)");
-        reqp(i, "pd_ri",   "is.numeric(pd_ri) & length(pd_ri) == length(size) & all(pd_ri >= 0) & all(pd_ri <= 1)");
-        reqp(i, "wn",      "is.numeric(wn) & length(wn) == length(size) & all(wn >= 0)");
-        reqp(i, "wv",      "is.numeric(wv) & length(wv) == length(size) & all(wv >= 0)");
-        reqp(i, "wv2",     "is.numeric(wv2) & length(wv2) == length(size) & all(wv2 >= 0)");
-        reqp(i, "A",       "is.numeric(A) & length(A) == length(size) & all(A >= 0)");
-        reqp(i, "B",       "is.numeric(B) & length(B) == length(size) & all(B >= 0)");
-        reqp(i, "D",       "is.numeric(D) & length(D) == length(size) & all(D >= 0)");
-
-        reqp(i, "season_A",   "is.numeric(season_A) & length(season_A) == 1 & all(abs(season_A <= 1))");
-        reqp(i, "season_T",   "is.numeric(season_T) & length(season_T) == 1 & all(season_T > 0)");
-        reqp(i, "season_phi", "is.numeric(season_phi) & length(season_phi) == 1");
-        
-        reqp(i, "seed_times",      "is.numeric(seed_times) & !is.unsorted(seed_times)");
-        reqp(i, "dist_seed_ages",  "is.numeric(dist_seed_ages) & length(dist_seed_ages) == length(size)");
-        
-        if (!is.null(parameters$pop[[i]]$observer)) {
-            if (!(is.function(parameters$pop[[i]]$observer) & length(formals(parameters$pop[[i]]$observer) == 4))) {
-                stop(paste0("observer has to be either NULL or a function taking 4 arguments, but is not in population", i));
+    req(requirements, parameters)
+    for (popi in seq_along(parameters$pop)) {
+        req(
+            population_requirements, parameters$pop[[popi]],
+            sprintf("Population parameter '%%s' required, but not found in population %i.", popi),
+            sprintf("Parameters check '%%s' failed in population %i.", popi)
+        )
+        parameters$pop[[popi]] <- opts(
+            population_optionals, parameters$pop[[popi]],
+            optional_substitutes,
+            sprintf("Optional parameter '%%s' not found in population %i; using default substitute parameter '%%s'.", popi),
+            sprintf("Parameters check '%%s' failed in population %i.", popi)
+        )
+        if (!is.null(parameters$pop[[popi]]$observer)) {
+            if (!(is.function(parameters$pop[[popi]]$observer) & length(formals(parameters$pop[[popi]]$observer) == 4))) {
+                stop(paste0("observer has to be either NULL or a function taking 4 arguments, but is not in population", popi));
             }
         }
-        reqp(i, "schedule", "is.list(schedule)");
-        schedule_times = sapply(parameters$pop[[i]]$schedule, function(x) x$t);
+        
+        schedule_times = sapply(parameters$pop[[popi]]$schedule, function(x) x$t);
         if (is.unsorted(schedule_times)) {
-            stop(paste0("elements t of schedule need to be ordered, but are not in population ", i));
+            stop(paste0("elements t of schedule need to be ordered, but are not in population ", popi));
         }
     }
+    return(parameters)
 }
 
 # Get demographics for a given location, with error checking.
@@ -234,179 +284,108 @@ cm_split_matrices_ex_in = function(parameters, bounds)
 # cm_split_matrices_in_ex
 # cm_split_matrices_custom
 
+def_matrix <- function(n_groups) {
+    m <- diag(n_groups) * 0.5 + 0.5/n_groups
+    dimnames(m) <- list(1:n_groups, 1:n_groups)
+    return(m)
+}
+
 # Get default population parameters, SEI3R model
-cm_base_pop_SEI3R = function(n_groups)
-{
-    list(
-        dE  = cm_delay_gamma(4.0, 4.0, t_max = 60, t_step = 0.25)$p, # Derived from Backer et al Eurosurveillance
-        dEa = cm_delay_gamma(4.0, 4.0, t_max = 60, t_step = 0.25)$p, # Derived from Backer et al Eurosurveillance
-        dIp = cm_delay_gamma(2.4, 4.0, t_max = 60, t_step = 0.25)$p, # Derived from Backer et al Eurosurveillance
-        dIa = cm_delay_gamma(7.0, 4.0, t_max = 60, t_step = 0.25)$p, # Assumed 7 days subclinical shedding
-        dIs = cm_delay_gamma(3.2, 3.7, t_max = 60, t_step = 0.25)$p, # Zhang et al 2020
-        dC = 1, # no case reporting delay
-        
-        size = rep(1000, n_groups),
-        imm0 = rep(0, n_groups),
-        matrices = list(base = diag(n_groups) * 0.5 + 0.5/n_groups),
-        contact = 1,
-        contact_mult = numeric(),
-        contact_lowerto = numeric(),
-        u = rep(0.08, n_groups),
-        y = rep(0.5, n_groups),
-        fIp = rep(1, n_groups),
-        fIs = rep(1, n_groups),
-        fIa = rep(0.5, n_groups),
-        omega = rep(0, n_groups),
-        rho = rep(1, n_groups),
-        tau = rep(1, n_groups),
-        v = rep(0, n_groups),
-        v12 = rep(0, n_groups),
-        v2 = rep(0, n_groups),
-        ev = rep(1, n_groups),
-        ei_v = rep(1, n_groups),
-        ed_vi = rep(0, n_groups),
-        ev2 = rep(1, n_groups),
-        ei_v2 = rep(1, n_groups),
-        ed_vi2 = rep(0, n_groups),
-        pi_r = rep(1, n_groups),
-        pd_ri = rep(0, n_groups),
-        wn = rep(0, n_groups),
-        wv = rep(0, n_groups),
-        wv2 = rep(0, n_groups),
-        A = rep(0, n_groups),
-        B = rep(0, n_groups),
-        D = rep(0, n_groups),
-        season_A = 0,
-        season_T = 365.25,
-        season_phi = 0,
-        
-        seed_times = 1,
-        dist_seed_ages = rep(1, n_groups),
-        
-        schedule = list(),
-        observer = NULL
-    )
+cm_base_pop_SEI3R = function(
+    n_groups = 16,
+    dE  = cm_delay_gamma(4.0, 4.0, t_max = 60, t_step = 0.25)$p, # Derived from Backer et al Eurosurveillance
+    dIp = cm_delay_gamma(2.4, 4.0, t_max = 60, t_step = 0.25)$p, # Derived from Backer et al Eurosurveillance
+    dIa = cm_delay_gamma(7.0, 4.0, t_max = 60, t_step = 0.25)$p, # Assumed 7 days subclinical shedding
+    dIs = cm_delay_gamma(3.2, 3.7, t_max = 60, t_step = 0.25)$p, # Zhang et al 2020
+    dC = 1, # no case reporting delay
+    size = rep(1000, n_groups),
+    imm0 = rep(0, n_groups),
+    matrices = list(base = def_matrix(n_groups)),
+    contact = rep(1, length(matrices)),
+    contact_mult = numeric(),
+    contact_lowerto = numeric(),
+    
+    u = rep(0.08, n_groups),
+    y = rep(0.5, n_groups),
+    fIp = rep(1, n_groups),
+    fIs = rep(1, n_groups),
+    fIa = rep(0.5, n_groups),
+    omega = rep(0, n_groups),
+    rho = rep(1, n_groups),
+    tau = rep(1, n_groups),
+    v = rep(0, n_groups),
+    ev = rep(1, n_groups),
+    wn = rep(0, n_groups),
+    wv = rep(0, n_groups),
+    A = rep(0, n_groups),
+    B = rep(0, n_groups),
+    D = rep(0, n_groups),
+    
+    season_A = 0,
+    season_T = 365.25,
+    season_phi = 0,
+    
+    seed_times = 1,
+    dist_seed_ages = rep(1, n_groups),
+    
+    schedule = list(),
+    observer = NULL,
+    name = "pop_name",
+    group_names = colnames(matrices[[1]]),
+    ... # any unnamed elements will be ignored
+) {
+    # cannot use {} notation here, since creates a sub-environment
+    for (key in c(
+        "u", "y", "fIp", "fIs", "fIa", "omega", "rho", "tau", "v", "ev", "wn", "wv", "A", "B", "D"
+    )) if (
+        length(get(key)) == 1
+    ) assign(key, rep(get(key), n_groups)) else if (
+        length(get(key)) != n_groups
+    ) stop(sprintf("Parameter %s is not length 1 or n_groups = %i.", key, n_groups))
+    
+    rm(key)
+    return(as.list(environment()))
 }
 
 # Build parameters for a single location, SEI3R model
-cm_build_pop_SEI3R = function(dem_location, mat_location = "guess",
-    dE = NULL, dEa = NULL, dIp = NULL, dIs = NULL, dIa = NULL, dC = NULL, contact = NULL, imm0 = NULL, 
-    u = NULL, y = NULL, fIp = NULL, fIa = NULL, fIs = NULL, omega = NULL, rho = NULL, tau = NULL,
-    v = NULL, v12 = NULL, v2 = NULL, ev = NULL, ei_v = NULL, ed_vi = NULL, ev2 = NULL, ei_v2 = NULL,
-    ed_vi2 = NULL, pi_r = NULL, pd_ri = NULL, wn = NULL, wv = NULL, wv2 = NULL, 
-    A = NULL, B = NULL, D = NULL, season_A = NULL, season_T = NULL, season_phi = NULL,
-    seed_times = NULL, dist_seed_ages = NULL, observer = NULL, schedule = NULL)
-{
-    # Get desired demographics and matrices.
-    matrices = cm_get_matrices(mat_location, dem_location);
-    n_groups = nrow(matrices[[1]]);
-    demographics = cm_get_demographics(dem_location, n_groups);
-    
-    # Get base population parameters.
-    pop = cm_base_pop_SEI3R(n_groups);
-    
-    # Set population parameters.
-    assign = function(pop, name, value) {
-        if (!is.null(value)) {
-            pop[[name]] = value;
-        }
-        return (pop);
-    }
-    
-    assign_g = function(pop, name, value, n_groups) {
-        if (!is.null(value)) {
-            if (length(value) == 1 | length(value) == n_groups) {
-                pop[[name]] = rep_len(value, n_groups)
-            } else {
-                stop(paste0("Parameter ", name, " must be either length 1 or length n_groups = ", n_groups, "."));
-            }
-        }
-        return (pop);
-    }
-    
-    pop$name = dem_location;
-    pop$group_names = colnames(matrices[[1]]);
-    
-    pop = assign(pop, "dE", dE);
-    pop = assign(pop, "dEa", dEa);
-    pop = assign(pop, "dIp", dIp);
-    pop = assign(pop, "dIs", dIs);
-    pop = assign(pop, "dIa", dIa);
-    pop = assign(pop, "dC", dC);
-    pop$size = demographics[, round((f + m) * 1000)];
-    pop$matrices = matrices;
-    pop$contact = rep(1, length(matrices));
-    pop = assign(pop, "contact", contact);
-    
-    pop = assign_g(pop, "imm0", imm0, n_groups);
-    pop = assign_g(pop, "u", u, n_groups);
-    pop = assign_g(pop, "y", y, n_groups);
-    pop = assign_g(pop, "fIp", fIp, n_groups);
-    pop = assign_g(pop, "fIs", fIs, n_groups);
-    pop = assign_g(pop, "fIa", fIa, n_groups);
-    pop = assign_g(pop, "omega", omega, n_groups);
-    pop = assign_g(pop, "rho", rho, n_groups);
-    pop = assign_g(pop, "tau", tau, n_groups);
-    pop = assign_g(pop, "v", v, n_groups);
-    pop = assign_g(pop, "v12", v12, n_groups);
-    pop = assign_g(pop, "v2", v2, n_groups);
-    pop = assign_g(pop, "ev", ev, n_groups);
-    pop = assign_g(pop, "ei_v", ei_v, n_groups);
-    pop = assign_g(pop, "ed_vi", ed_vi, n_groups);
-    pop = assign_g(pop, "ev2", ev2, n_groups);
-    pop = assign_g(pop, "ei_v2", ei_v2, n_groups);
-    pop = assign_g(pop, "ed_vi2", ed_vi2, n_groups);
-    pop = assign_g(pop, "pi_r", pi_r, n_groups);
-    pop = assign_g(pop, "pd_ri", pd_ri, n_groups);
-    pop = assign_g(pop, "wn", wn, n_groups);
-    pop = assign_g(pop, "wv", wv, n_groups);
-    pop = assign_g(pop, "wv2", wv2, n_groups);
-    pop = assign_g(pop, "A", A, n_groups);
-    pop = assign_g(pop, "B", B, n_groups);
-    pop = assign_g(pop, "D", D, n_groups);
-    pop = assign(pop, "season_A", season_A);
-    pop = assign(pop, "season_T", season_T);
-    pop = assign(pop, "season_phi", season_phi);
-
-    pop = assign(pop, "seed_times", seed_times);
-    pop = assign(pop, "dist_seed_ages", dist_seed_ages);
-    pop = assign(pop, "observer", observer);
-    pop = assign(pop, "schedule", schedule);
-    
-    return (pop)
-}
+cm_build_pop_SEI3R = function(
+    dem_location,
+    mat_location = "guess",
+    ...,
+    matrices = cm_get_matrices(mat_location, dem_location),
+    n_groups = nrow(matrices[[1]]),
+    demographics = cm_get_demographics(dem_location, n_groups),
+    size = demographics[, round((f + m) * 1000)],
+    name = dem_location
+) do.call(cm_base_pop_SEI3R, c(as.list(environment()), list(...)))
 
 # Get default simulation parameters, SEI3R model
-cm_base_parameters_SEI3R = function(n_groups = 1, pop = cm_base_pop_SEI3R(n_groups))
-{
-    # If just a single population, rather than a list of populations, has been passed to this function, rectify that.
-    if (is.character(pop$type)) {
-        pop = list(pop);
-    }
-    
-    list(
-        model = "SEI3R",
-        time_step = 0.25,
-        date0 = "2020-01-01",
-        time0 = 0,
-        time1 = 365,
-        report_every = 4,
-        fast_multinomial = F,
-        deterministic = T,
-        pop = pop,
-        travel = diag(length(pop)),
-        processes = NULL
-    )
+cm_base_parameters_SEI3R = function(
+    n_groups = 1,
+    model = "SEI3R",
+    time_step = 0.25,
+    date0 = "2020-01-01",
+    time0 = 0,
+    time1 = 365,
+    report_every = 4,
+    fast_multinomial = F,
+    deterministic = T,
+    pop = list(cm_base_pop_SEI3R(n_groups = n_groups)),
+    travel = diag(length(pop)),
+    processes = NULL
+) {
+    ret <- as.list(environment())
+    ret$n_groups <- NULL
+    cm_check_parameters(cm_translate_parameters(ret))
 }
 
 # Build parameters for one or several locations, SEI3R model
-cm_parameters_SEI3R = function(dem_locations, mat_locations = "guess", date_start = "2020-03-01", date_end = "2021-03-01", deterministic = T, processes = NULL,
-    dE = NULL, dEa = NULL, dIp = NULL, dIs = NULL, dIa = NULL, dC = NULL, contact = NULL, imm0 = NULL, 
-    u = NULL, y = NULL, fIp = NULL, fIa = NULL, fIs = NULL, omega = NULL, rho = NULL, tau = NULL,
-    v = NULL, v12 = NULL, v2 = NULL, ev = NULL, ei_v = NULL, ed_vi = NULL, ev2 = NULL, ei_v2 = NULL,
-    ed_vi2 = NULL, pi_r = NULL, pd_ri = NULL, wn = NULL, wv = NULL, wv2 = NULL, 
-    A = NULL, B = NULL, D = NULL, season_A = NULL, season_T = NULL, season_phi = NULL,
-    seed_times = NULL, dist_seed_ages = NULL, observer = NULL, schedule = NULL)
+cm_parameters_SEI3R = function(
+    dem_locations, mat_locations = "guess",
+    date_start = "2020-03-01", date_end = "2021-03-01", deterministic = T,
+    processes = NULL,
+    ...
+)
 {
     # Check parameters
     if (length(mat_locations) != length(dem_locations)) {
@@ -421,24 +400,19 @@ cm_parameters_SEI3R = function(dem_locations, mat_locations = "guess", date_star
     pop = list();
     for (i in seq_along(dem_locations))
     {
-        pop[[i]] = cm_build_pop_SEI3R(dem_locations[i], mat_locations[i],
-            dE = dE, dEa = dEa, dIp = dIp, dIs = dIs, dIa = dIa, dC = dC, contact = contact, imm0 = imm0,
-            u = u, y = y, fIp = fIp, fIa = fIa, fIs = fIs, omega = omega, rho = rho, tau = tau,
-            v = v, v12 = v12, v2 = v2, ev = ev, ei_v = ei_v, ed_vi = ed_vi, ev2 = ev2, ei_v2 = ei_v2, 
-            ed_vi2 = ed_vi2, pi_r = pi_r, pd_ri = pd_ri, wn = wn, wv = wv, wv2 = wv2,
-            A = A, B = B, D = D, season_A = season_A, season_T = season_T, season_phi = season_phi,
-            seed_times = seed_times, dist_seed_ages = dist_seed_ages, observer = observer, schedule = schedule);
+        pop[[i]] = cm_build_pop_SEI3R(dem_locations[i], mat_locations[i], ...);
     }
 
     # Build simulation parameters around this population.
-    parameters = cm_base_parameters_SEI3R(n_groups, pop);
-    parameters$date0 = date_start;
-    parameters$time0 = 0;
-    parameters$time1 = date_end;
-    parameters$deterministic = deterministic;
-    parameters$processes = processes;
+    parameters = cm_base_parameters_SEI3R(
+        n_groups = length(pop[[1]]$size),
+        pop = pop, date0 = date_start,
+        time0 = 0, time1 = date_end,
+        deterministic = deterministic,
+        processes = processes
+    );
     
-    return (parameters)
+    return(parameters)
 }
 
 # Get regions for the UK.

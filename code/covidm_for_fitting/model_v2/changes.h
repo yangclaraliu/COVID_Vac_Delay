@@ -15,7 +15,7 @@ struct PopulationParameters;
 struct Change
 {
     // Operation to apply with change
-    enum Mode { Assign, Add, Multiply, LowerTo, RaiseTo, Bypass };
+    enum Mode { Assign, Add, Multiply, LowerTo, RaiseTo };
 
     // Construct a change impacting parameter pname in populations po of parameters P;
     // apply value v with mode m at times t

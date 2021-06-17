@@ -27,7 +27,7 @@
 
 // Construct a change impacting parameter pname in populations po of parameters P;
 // apply value v with mode m at times t
-Change::Change(Parameters& P, vector<unsigned int>& po, vector<unsigned int>& ru, string pname,
+Change::Change(Parameters& P, vector<unsigned int>& po, vector<unsigned int>& ru, string pname, 
     Mode m, vector<double>& t, vector<vector<double>>& v)
  : mode(m), times(t), values(v), param_name(pname), current(-1), pops(po), runs(ru)
 {
@@ -41,7 +41,8 @@ void Change::Capture(Parameters& P)
     current = -1;
     if (false) {}
     ParamCapture(dE,      PDiscrete)
-    ParamCapture(dEa,     PDiscrete)
+    ParamCapture(dEv,      PDiscrete)
+    ParamCapture(dEv2,      PDiscrete)
     ParamCapture(dIp,     PDiscrete)
     ParamCapture(dIa,     PDiscrete)
     ParamCapture(dIs,     PDiscrete)
@@ -50,33 +51,26 @@ void Change::Capture(Parameters& P)
     ParamCapture(contact_mult,    PVector)
     ParamCapture(contact_lowerto, PVector)
     ParamCapture(u,       PVector)
+    ParamCapture(uv,       PVector)
+    ParamCapture(uv2,       PVector)
     ParamCapture(fIp,     PVector)
     ParamCapture(fIa,     PVector)
     ParamCapture(fIs,     PVector)
     ParamCapture(y,       PVector)
+    ParamCapture(yv,       PVector)
+    ParamCapture(yv2,       PVector)
     ParamCapture(omega,   PVector)
     ParamCapture(rho,     PVector)
     ParamCapture(tau,     PVector)
     ParamCapture(v,       PVector)
-    ParamCapture(v12,     PVector)
-    ParamCapture(v2,      PVector)
     ParamCapture(ev,      PVector)
-    ParamCapture(ev2,     PVector)
-    ParamCapture(ei_v,    PVector)
-    ParamCapture(ei_v2,   PVector)
-    ParamCapture(ed_vi,   PVector)
-    ParamCapture(ed_vi2,  PVector)
-    ParamCapture(pi_r,    PVector)
-    ParamCapture(pd_ri,   PVector)
+    ParamCapture(v2,       PVector)
+    ParamCapture(ev2,      PVector)
     ParamCapture(wn,      PVector)
     ParamCapture(wv,      PVector)
-    ParamCapture(wv2,     PVector)
     ParamCapture(A,       PVector)
     ParamCapture(B,       PVector)
     ParamCapture(D,       PVector)
-    ParamCapture(season_A,      PVector)
-    ParamCapture(season_T,      PVector)
-    ParamCapture(season_phi,    PVector)
 
     else if (param_name == "travel") {
         param_ptr.push_back(&P.travel.x);
@@ -108,9 +102,6 @@ void Change::Apply(double t)
             {
                 for (unsigned int j = 0; j < ptr->size(); ++j)
                 {
-                    if (values[current][j] == -999)
-                        continue;
-
                     switch (mode)
                     {
                         case Assign:    (*ptr)[j] = values[current][j]; break;
@@ -118,7 +109,6 @@ void Change::Apply(double t)
                         case Multiply:  (*ptr)[j] *= values[current][j]; break;
                         case LowerTo:   (*ptr)[j] = min((*ptr)[j], values[current][j]); break;
                         case RaiseTo:   (*ptr)[j] = max((*ptr)[j], values[current][j]); break;
-                        case Bypass:    break;
                     }
                 }
             }
@@ -157,17 +147,19 @@ void ChangeSet::Apply(Parameters& P, double t)
 {
     bool refresh = false;
 
+    // Update all changes
     for (auto& c : ch)
     {
         if (c.Update(t))
         {
-            c.Reset();
             refresh = true;
         }
     }
 
     if (refresh)
     {
+        for (auto& c : ch)
+            c.Reset();
         for (auto& c : ch)
             c.Apply(t);
         for (auto& pp : P.pop) { // TODO -- slightly wasteful; Change could keep track if linked parameter sets need refreshing; then again in most cases probably needed
@@ -176,3 +168,4 @@ void ChangeSet::Apply(Parameters& P, double t)
         }
     }
 }
+

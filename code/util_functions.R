@@ -1,21 +1,13 @@
 gen_country_basics <- function(country,
-                               waning_nat = 45*7,
+                               waning_nat = 52*7*3,
                                R0_assumed  = 2.7,
                                date_start = "2020-01-01",
                                date_end = "2022-12-31",
-                               # s_A = 0.1,
                                deterministic = TRUE){
   
   require(countrycode)
   
   wb_tmp = countrycode(country, "country.name", "wb")
-  # c_tmp = schedule_raw %>% 
-  #   filter(wb == wb_tmp,
-  #          date >= lubridate::ymd(date_start),
-  #          date <= lubridate::ymd(date_end))
-  # 
-  # t_run <- nrow(c_tmp)
-  
   para = cm_parameters_SEI3R(dem_locations = country, 
                              date_start = date_start, 
                              date_end = date_end,
@@ -73,12 +65,11 @@ gen_country_basics <- function(country,
 }
 
 update_vac_char <- function(para,
-                            waning_vac = 105,
-                            waning_vac2 = 365*3,
-                            ve_i = NULL,
-                            ve_i2 = NULL,
-                            ve_d = NULL,
-                            ve_d2 = NULL){
+                            uv = NULL,
+                            uv2 = NULL,
+                            yv = NULL,
+                            yv2 = NULL
+                            ){
   
   n_age <- length(para$pop[[1]]$size)
   

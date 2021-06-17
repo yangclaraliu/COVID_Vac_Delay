@@ -2,7 +2,7 @@
 
 #ifndef SIM_HOUSEHOLD_H
 #define SIM_HOUSEHOLD_H
-
+/*
 #include <vector>
 #include <cstdint>
 using namespace std;
@@ -39,5 +39,5 @@ private:
     uint32_t n_groups;
     vector<double> x;
 };
-
+*/
 #endif
