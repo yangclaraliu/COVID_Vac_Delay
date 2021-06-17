@@ -15,9 +15,27 @@ struct Parameters;
 #include <limits>
 #include <initializer_list>
 #include <string>
-#include <map>
 
 using namespace std;
+
+enum ReportIndex
+{
+    riS = 0, riE, riIp, riIs, riIa, riR,
+    ricases, ricases_reported, risubclinical,
+    rilambda,
+    riSv, riEv, riRv, rilambdav,
+    riSv2, riEv2, riRv2, rilambdav2,
+    riSw
+};
+
+const vector<string> ref_col_names = {
+    "S", "E", "Ip", "Is", "Ia", "R",
+    "cases", "cases_reported", "subclinical",
+    "foi",
+    "Sv", "Ev", "Rv", "foiv",
+    "Sv2", "Ev2", "Rv2", "foiv2",
+    "Sw"
+};
 
 // For reporting results
 class Reporter
@@ -53,12 +71,11 @@ public:
     unsigned int n_populations;
     unsigned int n_age_groups;
     vector<string> col_names;
+    unsigned int user_defined_offset;
 
     vector<vector<double>> data;
     vector<vector<double>> obs;
     string csv;
-
-    map<string, double> scratch;
 };
 
 #endif 

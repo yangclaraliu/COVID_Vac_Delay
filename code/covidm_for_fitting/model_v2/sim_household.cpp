@@ -1,5 +1,5 @@
 // sim_household.cpp
-
+/*
 #include "sim_household.h"
 #include "parameters.h"
 #include "reporter.h"
@@ -305,3 +305,4 @@ void Households::Run(Parameters& P, Randomizer& Rand, Reporter& rep)
 // X age specific mixing within a region
 // X travel to other regions
 // age specific travel to other regions
+*/

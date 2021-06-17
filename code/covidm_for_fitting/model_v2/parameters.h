@@ -23,7 +23,6 @@ using namespace std;
 #include "helper.h"
 #include "process_spec.h"
 #include "changes.h"
-#include "parameters.h"
 #include "compartment.h"
 #include "reporter.h"
 #include "observer.h"
@@ -47,7 +46,8 @@ public:
     Matrix cm;          // contact matrix
 
     Discrete dE;
-    Discrete dEa;
+    Discrete dEv;
+    Discrete dEv2;
     Discrete dIp;       // TODO: any need for these to be age-specific?
     Discrete dIa;
     Discrete dIs;
@@ -60,34 +60,30 @@ public:
     vector<double> contact_mult;
     vector<double> contact_lowerto;
     vector<double> u;
+    vector<double> uv; // susceptibility in vaccinees
+    vector<double> uv2; // susceptibility in second dose vaccinees
     vector<double> fIp;
     vector<double> fIa;
     vector<double> fIs;
     vector<double> y;
+    vector<double> yv; // symptomatic rate in vaccinees
+    vector<double> yv2; // symptomatic rate in vaccinees
     vector<double> omega;
     vector<double> rho;
     vector<double> tau;
     vector<double> v;
-    vector<double> v12;
     vector<double> v2;
     vector<double> ev;
-    vector<double> ei_v;
-    vector<double> ed_vi;
     vector<double> ev2;
-    vector<double> ei_v2;
-    vector<double> ed_vi2;
-    vector<double> pi_r;
-    vector<double> pd_ri;
     vector<double> wn;
     vector<double> wv;
-    vector<double> wv2;
     vector<double> A;
     vector<double> B;
     vector<double> D;
-    vector<double> season_A;    // note - size 1 vector
-    vector<double> season_T;    // note - size 1 vector
-    vector<double> season_phi;  // note - size 1 vector
-
+    double season_A;
+    double season_T;
+    double season_phi;
+    
     vector<double> seed_times;
     Discrete dist_seed_ages;
 
@@ -131,7 +127,7 @@ struct Parameters
 {
 public:
     void FilterForRun(unsigned int r);
-
+    
     string model;
     double time_step;
     double time0;
@@ -142,7 +138,7 @@ public:
 
     vector<PopulationParameters> pop;
 
-    vector<ProcessSpec> processes;
+    ProcessList processes;
     ///Observer observer;
     Matrix travel;
     ChangeSet changes;

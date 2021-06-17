@@ -39,11 +39,14 @@ Reporter RunSimulation(Parameters& P, Randomizer& Rand, vector<double> x)
     {
         Metapopulation mp(P);
         mp.Run(P, Rand, rep, x);
-    } 
+    }
     else if (P.model == "household")
     {
+        throw std::logic_error("Household model not supported.");
+        /*
         Households h(P);
         h.Run(P, Rand, rep);
+         */
     }
     else
     {
@@ -67,13 +70,13 @@ Rcpp::List cm_backend_simulate_v2(Rcpp::List parameters, unsigned int n_run = 1,
     Randomizer rand_master(seed);
     Parameters covidm_parameters;
     SetParameters(covidm_parameters, parameters, rand_master);
-
+    
     if (!file_out.empty())
     {
         // Components unique to each run
         vector<Randomizer> rand_r;
         for (unsigned int r = 0; r < n_run; ++r)
-            rand_r.emplace_back(gsl_rng_get(rand_master.GSL_RNG()));
+            rand_r.emplace_back(rand_master());
 
         // Run the simulation
         #pragma omp parallel for if(n_threads > 1) schedule(dynamic)
@@ -95,7 +98,7 @@ Rcpp::List cm_backend_simulate_v2(Rcpp::List parameters, unsigned int n_run = 1,
         vector<Randomizer> rand_r;
         vector<Reporter> rep_r(n_run, Reporter(covidm_parameters));
         for (unsigned int r = 0; r < n_run; ++r)
-            rand_r.emplace_back(gsl_rng_get(rand_master.GSL_RNG()));
+            rand_r.emplace_back(rand_master());
 
         // Run the simulation
         #pragma omp parallel for if(n_threads > 1) schedule(dynamic)
@@ -136,7 +139,7 @@ Rcpp::List cm_backend_simulate_v2(Rcpp::List parameters, unsigned int n_run = 1,
                 dynamics_df.push_back(rep.obs[c], "obs" + to_string(c));
 
             // Set dataframe as a data.table
-            Rcpp::Function setDT("setDT"); 
+            Rcpp::Function setDT("setDT");
             setDT(dynamics_df);
 
             dynamics.push_back(dynamics_df);
@@ -180,7 +183,7 @@ Rcpp::DataFrame cm_evaluate_distribution_v2(string dist_code, unsigned int steps
 }
 
 // [[Rcpp::export]]
-Rcpp::DataFrame cm_backend_mcmc_test(Rcpp::List R_base_parameters, Rcpp::List params_priors, unsigned long int seed, 
+Rcpp::DataFrame cm_backend_mcmc_test(Rcpp::List R_base_parameters, Rcpp::List params_priors, unsigned long int seed,
     unsigned int burn_in, unsigned int iterations, unsigned int n_threads, bool classic_gamma)
 {
     // Initialise parameters for this simulation
@@ -206,7 +209,7 @@ Rcpp::DataFrame cm_backend_mcmc_test(Rcpp::List R_base_parameters, Rcpp::List pa
     Likelihood lik(base_parameters, seed);
     MCMCReporter rep(iterations, n_chains, param_names);
 
-    DEMCMC_Priors(Rand, lik, rep, burn_in, iterations, n_chains, priors, verbose, param_names, 
+    DEMCMC_Priors(Rand, lik, rep, burn_in, iterations, n_chains, priors, verbose, param_names,
         reeval_likelihood, in_parallel, n_threads, classic_gamma);
 
     // Get data.frame as a data.table and return
@@ -222,8 +225,8 @@ Rcpp::DataFrame cm_backend_mcmc_test(Rcpp::List R_base_parameters, Rcpp::List pa
 }
 
 // [[Rcpp::export]]
-Rcpp::DataFrame cm_backend_optimize_test(Rcpp::List R_base_parameters, Rcpp::List params_priors, 
-    unsigned int maxeval, double ftol_abs, 
+Rcpp::DataFrame cm_backend_optimize_test(Rcpp::List R_base_parameters, Rcpp::List params_priors,
+    unsigned int maxeval, double ftol_abs,
     unsigned long int seed, unsigned int n_threads)
 {
     // Initialise parameters for this simulation
@@ -242,20 +245,8 @@ Rcpp::DataFrame cm_backend_optimize_test(Rcpp::List R_base_parameters, Rcpp::Lis
     Likelihood lik(base_parameters, seed);
     MCMCReporter rep(1, 1, param_names);
 
-    // Optimize_Priors(Rand, lik, rep, priors,
-    //     maxeval, ftol_abs, true, n_threads > 1, n_threads);
-
-//-----
-    (void) maxeval;
-    (void) ftol_abs;
-    (void) n_threads;
-    vector<double> initial(priors.size(), 0.0);
-    for (unsigned int i = 0; i < priors.size(); ++i)
-        initial[i] = priors[i].RandomInit(Rand);
-
-    NelderMead_Priors(Rand, lik, rep, priors,
-        initial, false, false, false);
-//-----
+    Optimize_Priors(Rand, lik, rep, priors,
+        maxeval, ftol_abs, true, n_threads > 1, n_threads);
 
     // Get data.frame as a data.table and return
     Rcpp::DataFrame df = Rcpp::DataFrame::create();
@@ -297,7 +288,7 @@ Rcpp::List cm_backend_sample_fit_test(Rcpp::List R_base_parameters, Rcpp::DataFr
 
         // TODO Dataframe construction -- copied from old reporter.cpp ----
         // TODO Can move some of this outside the loop... and refactor with code above which is similar
-    
+
         // Create times
         Rcpp::NumericVector t(rep.n_times * rep.n_populations * rep.n_age_groups, 0.);
         for (unsigned int it = 0; it < rep.n_times; ++it)
@@ -322,11 +313,31 @@ Rcpp::List cm_backend_sample_fit_test(Rcpp::List R_base_parameters, Rcpp::DataFr
             dynamics_df.push_back(rep.obs[c], "obs" + to_string(c));
 
         // Set dataframe as a data.table
-        Rcpp::Function setDT("setDT"); 
+        Rcpp::Function setDT("setDT");
         setDT(dynamics_df);
 
         dynamics.push_back(dynamics_df);
     }
 
     return dynamics;
+}
+
+// [[Rcpp::export]]
+Rcpp::NumericVector cm_temp_which_rows(Rcpp::List R_base_parameters, Rcpp::DataFrame posterior, unsigned int n, unsigned long int seed)
+{
+    (void) R_base_parameters;
+    Randomizer Rand(seed);
+    Parameters base_parameters;
+
+    SetParameters(base_parameters, R_base_parameters, Rand);
+
+    Rcpp::NumericVector rows;
+
+    for (unsigned int i = 0; i < n; ++i)
+    {
+        unsigned int row = Rand.Discrete(posterior.nrows());
+        rows.push_back(row + 1);
+    }
+
+    return rows;
 }

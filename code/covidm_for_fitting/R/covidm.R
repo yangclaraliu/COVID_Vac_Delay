@@ -14,7 +14,7 @@ suppressPackageStartupMessages({
     library(data.table)   # for data.table, an enhanced (and faster) data.frame
     library(ggplot2)      # for plotting
     library(Rcpp)         # for running the C++ model backend
-    library(RcppGSL)      # for linking with the GNU Scientific Library for the C++ backend
+    library(BH)           # for linking with Boost
     library(qs)           # for qsave and qread, faster equivalents of saveRDS and readRDS
     library(lubridate)    # for manipulating dates and times. NB requires stringr
     library(HDInterval)   # for summarizing results
@@ -29,30 +29,31 @@ cm_option_ = function(name, default_value) {
     return (get0(name, ifnotfound = default_value))
 }
 
-cm_path_           = cm_option_("cm_path", "~/Dropbox/nCoV/covidm/")
+cm_path_           = normalizePath(cm_option_("cm_path", "~/Dropbox/nCoV/covidm/"))
 cm_version_        = cm_option_("cm_version", 2)
 cm_build_          = cm_option_("cm_build", T)
 cm_force_rebuild_  = cm_option_("cm_force_rebuild", F)
-cm_build_dir_      = cm_option_("cm_build_dir", paste0(cm_path_, "/build/"))
+cm_build_dir_      = normalizePath(
+        cm_option_("cm_build_dir", file.path(cm_path_, "build"))
+    )
 cm_build_verbose_  = cm_option_("cm_build_verbose", T)
 cm_force_shared_   = cm_option_("cm_force_shared", F)
 
 # Attach code
-source(paste0(cm_path_, "/R/shared/cmS_misc.R"))
-source(paste0(cm_path_, "/R/shared/cmS_plot.R"))
 
-if (cm_version_ == 1) {
-    source(paste0(cm_path_, "/R/v1/cm1_backend.R"))
-    source(paste0(cm_path_, "/R/v1/cm1_run.R"))
-    source(paste0(cm_path_, "/R/v1/cm1_params.R"))
-    source(paste0(cm_path_, "/R/v1/cm1_interventions.R"))
-    source(paste0(cm_path_, "/R/v1/cm1_fit.R"))
-} else if (cm_version_ == 2) {
-    source(paste0(cm_path_, "/R/v2/cm2_backend.R"))
-    source(paste0(cm_path_, "/R/v2/cm2_run.R"))
-    source(paste0(cm_path_, "/R/v2/cm2_params.R"))
-    source(paste0(cm_path_, "/R/v2/cm2_interventions.R"))
-    source(paste0(cm_path_, "/R/v2/cm2_fit.R"))
+sapply(
+    file.path(cm_path_, "R", "shared", c("cmS_misc.R", "cmS_plot.R")),
+    source
+)
+
+if (cm_version_ %in% c(1, 2)) {
+    sapply(
+        file.path(cm_path_, sprintf(file.path(
+            "R", "v%i",
+            c("cm%i_backend.R", "cm%i_run.R", "cm%i_params.R", "cm%i_interventions.R", "cm%i_fit.R")
+        ), cm_version_, cm_version_)),
+        source
+    )
 } else {
     stop(paste("Requested covidm version", cm_version_, "but there are only versions 1 and 2."));
 }
@@ -62,10 +63,13 @@ if (cm_build_) {
     cm_source_backend();
 }
 
-# Attach data
 packageStartupMessage("Loading data...");
-cm_matrices     = readRDS(paste0(cm_path_, "/data/all_matrices.rds"));
-cm_populations  = readRDS(paste0(cm_path_, "/data/wpp2019_pop2020.rds"));
-cm_structure_UK = readRDS(paste0(cm_path_, "/data/structure_UK.rds"));
-cm_highrisk     = readRDS(paste0(cm_path_, "/data/prevalence_morbidities.rds"))
-
+invisible(mapply(
+    assign,
+    x=sprintf("cm_%s", c("matrices","populations","structure_UK","highrisk")),
+    value=lapply(file.path(
+        cm_path_,"data",c("all_matrices.rds","wpp2019_pop2020.rds","structure_UK.rds","prevalence_morbidities.rds")),
+        readRDS
+    ),
+    MoreArgs = list(envir = environment())
+))

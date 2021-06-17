@@ -84,3 +84,18 @@ cm_plot_pairwise = function(fit)
     
     plot_grid(plotlist = plotlist, nrow = length(fit$priors), ncol = length(fit$priors))
 }
+
+cm_process_consolidate <- function(cmrun) {
+    p.rle <- rle(sort(do.call(c, lapply(cmrun$base_parameters$processes, function(p) p$names[p$names != "null"]))))
+    duplicate_process_names <- p.rle$values[p.rle$lengths > 1]
+    if (length(duplicate_process_names)) {
+        newdyn <- copy(cmrun$dynamics)
+        greppat <- sprintf("(%s)", paste(duplicate_process_names, collapse = "|"))
+        newdyn[, tmp_compartment := compartment ]
+        newdyn[grepl(greppat, compartment), tmp_compartment := gsub("\\.\\d+$","", tmp_compartment) ]
+        newdyn$compartment <- factor(newdyn$tmp_compartment)
+        newdyn$tmp_compartment <- NULL
+        cmrun$dynamics <- newdyn[, .(value = sum(value)), by=c(grep("^value$", colnames(newdyn), invert = TRUE, value = TRUE))]
+    }
+    return(cmrun)
+}

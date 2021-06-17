@@ -1,23 +1,25 @@
 // randomizer.h
 // (C) 2013-2020 Nicholas G Davies
 
+// [[Rcpp::plugins(cpp11)]]
+// [[Rcpp::plugins(openmp)]]
+// [[Rcpp::depends(BH)]]
+
 #ifndef RANDOMIZER_H
 #define RANDOMIZER_H
 
 #include <vector>
 #include <limits>
-#include <gsl/gsl_rng.h>
-#include <gsl/gsl_randist.h>
 #include <cmath>
 #include <stdexcept>
 #include <string>
-#include <iostream>
+#include <algorithm>
+#include <boost/random/mersenne_twister.hpp>
 
 class Randomizer
 {
 public:
     Randomizer(unsigned long int seed = 0);
-    ~Randomizer();
 
     void Reset();
 
@@ -32,9 +34,7 @@ public:
     double Beta(double alpha, double beta);
     unsigned int Discrete(unsigned int size);
     int Discrete(int min, int max);
-    // int Discrete(std::vector<unsigned int>& cumulative_weights);
-    // int Discrete(std::vector<double>& cumulative_weights);
-    void Multinomial(unsigned int N, std::vector<double>& p, std::vector<unsigned int>& n);
+    void Multinomial(unsigned int N, std::vector<double>& p, std::vector<unsigned int>& n_out);
     bool Bernoulli(double p);
     unsigned int Binomial(unsigned int n, double p);
     unsigned int BetaBinomial(unsigned int n, double p, double a_plus_b);
@@ -42,35 +42,63 @@ public:
     int Geometric(double p);
     int Round(double x);
 
+    unsigned int operator()();
+    unsigned int operator()(unsigned int size);
+
     template <typename T>
     void Shuffle(std::vector<T>& vec);
 
-    inline gsl_rng* GSL_RNG() { return r; }
+    inline unsigned long int Seed() const { return seed; }
 
 private:
     unsigned long int seed;
-    gsl_rng* r;
+    boost::random::mt19937 generator;
 };
 
+template <typename T>
+void Randomizer::Shuffle(std::vector<T>& vec)
+{
+    std::random_shuffle(vec.begin(), vec.end(), *this);
+}
+
+// randomizer.cpp
+
+// [[Rcpp::plugins(cpp11)]]
+// [[Rcpp::plugins(openmp)]]
+
+#include <numeric>
+#include <boost/random/uniform_real_distribution.hpp>
+#include <boost/random/normal_distribution.hpp>
+#include <boost/random/lognormal_distribution.hpp>
+#include <boost/random/cauchy_distribution.hpp>
+#include <boost/random/exponential_distribution.hpp>
+#include <boost/random/gamma_distribution.hpp>
+#include <boost/random/beta_distribution.hpp>
+#include <boost/random/uniform_int_distribution.hpp>
+#include <boost/random/bernoulli_distribution.hpp>
+#include <boost/random/binomial_distribution.hpp>
+#include <boost/random/poisson_distribution.hpp>
+#include <boost/random/geometric_distribution.hpp>
+using namespace boost::random;
+
 Randomizer::Randomizer(unsigned long int s)
- : seed(s), r(gsl_rng_alloc(gsl_rng_mt19937))
+ : seed(s)
 {
     Reset();
 }
 
-Randomizer::~Randomizer()
-{
-    gsl_rng_free(r);
-}
-
 void Randomizer::Reset()
 {
-    gsl_rng_set(r, seed);
+    if (seed == 0)
+        generator.seed();
+    else
+        generator.seed(seed);
 }
 
 double Randomizer::Uniform(double min, double max)
 {
-    return min + gsl_rng_uniform(r) * (max - min);
+    uniform_real_distribution<double> d(min, max);
+    return d(generator);
 }
 
 double Randomizer::RoundedUniform(double min, double max, double shoulder)
@@ -89,7 +117,8 @@ double Randomizer::RoundedUniform(double min, double max, double shoulder)
 
 double Randomizer::Normal(double mean, double sd)
 {
-    return mean + gsl_ran_gaussian_ziggurat(r, sd);
+    normal_distribution<double> d(mean, sd);
+    return d(generator);
 }
 
 double Randomizer::Normal(double mean, double sd, double clamp)
@@ -101,99 +130,94 @@ double Randomizer::Normal(double mean, double sd, double clamp)
 
 double Randomizer::LogNormal(double zeta, double sd)
 {
-    return gsl_ran_lognormal(r, zeta, sd);
+    lognormal_distribution<double> d(zeta, sd);
+    return d(generator);
 }
 
 double Randomizer::Cauchy(double x0, double gamma)
 {
-    return x0 + gsl_ran_cauchy(r, gamma);
+    cauchy_distribution<double> d(x0, gamma);
+    return d(generator);
 }
 
 double Randomizer::Exponential(double rate)
 {
-    return gsl_ran_exponential(r, 1. / rate);
+    exponential_distribution<double> d(rate);
+    return d(generator);
 }
 
 double Randomizer::Gamma(double shape, double scale)
 {
-    return gsl_ran_gamma(r, shape, scale);
+    gamma_distribution<double> d(shape, scale);
+    return d(generator);
 }
 
 double Randomizer::Beta(double alpha, double beta)
 {
-    return gsl_ran_beta(r, alpha, beta);
+    beta_distribution<double> d(alpha, beta);
+    return d(generator);
 }
 
 unsigned int Randomizer::Discrete(unsigned int size)
 {
-    // TODO improve...
-    if (size > gsl_rng_max(r))
-        throw std::runtime_error("Generator cannot produce integers larger than " + std::to_string(gsl_rng_max(r)));
-    return gsl_rng_get(r) % size;
+    uniform_int_distribution<unsigned int> d(0, size - 1);
+    return d(generator);
 }
 
 int Randomizer::Discrete(int min, int max)
 {
-    return min + gsl_rng_uniform_int(r, max - min + 1);
+    uniform_int_distribution<int> d(min, max);
+    return d(generator);
 }
-// ///
-// int Randomizer::Discrete(std::vector<unsigned int>& cumulative_weights)
-// {
 
-//     if (cumulative_weights.back() == 0)
-//         return Discrete(cumulative_weights.size());
-//     return std::distance(cumulative_weights.begin(),
-//                 std::lower_bound(cumulative_weights.begin(),
-//                     cumulative_weights.end(),
-//                     Discrete(cumulative_weights.back())));
-// }
-// ///
-// int Randomizer::Discrete(std::vector<double>& cumulative_weights)
-// {
-//     if (cumulative_weights.back() == 0)
-//         return Discrete(cumulative_weights.size());
-//     return std::distance(cumulative_weights.begin(),
-//                 std::lower_bound(cumulative_weights.begin(),
-//                     cumulative_weights.end(),
-//                     Uniform(0.0, cumulative_weights.back())));
-// }
-
-void Randomizer::Multinomial(unsigned int N, std::vector<double>& p, std::vector<unsigned int>& n)
+void Randomizer::Multinomial(unsigned int N, std::vector<double>& p, std::vector<unsigned int>& n_out)
 {
-    gsl_ran_multinomial(r, p.size(), N, &p[0], &n[0]);
+    unsigned int n = N;
+    double p_denom = std::accumulate(p.begin(), p.end(), 0.0);
+    for (unsigned int i = 0; i < p.size() - 1; ++i)
+    {
+        n_out[i] = Binomial(n, p[i] / p_denom);
+        n -= n_out[i];
+        p_denom -= p[i];
+    }
+    n_out[p.size() - 1] = n;
 }
 
 bool Randomizer::Bernoulli(double p)
 {
     if (p <= 0) return false;
     if (p >= 1) return true;
-    return gsl_rng_uniform(r) < p;
+    bernoulli_distribution<double> d(p);
+    return d(generator);
 }
 
 unsigned int Randomizer::Binomial(unsigned int n, double p)
 {
     if (p <= 0) return 0;
-    if (p >= 1) return n;
-    return gsl_ran_binomial(r, p, n);
+    binomial_distribution<int, double> d(n, p);
+    return d(generator);
 }
 
 unsigned int Randomizer::BetaBinomial(unsigned int n, double p, double a_plus_b)
 {
-    if (a_plus_b > 0)
-        p = gsl_ran_beta(r, a_plus_b * p, a_plus_b * (1 - p));
-    return gsl_ran_binomial(r, p, n);
+    if (a_plus_b > 0) {
+        p = Beta(a_plus_b * p, a_plus_b * (1 - p));
+    }
+    return Binomial(n, p);
 }
 
 int Randomizer::Poisson(double mean)
 {
     if (mean <= 0) return 0;
-    return gsl_ran_poisson(r, mean);
+    poisson_distribution<unsigned int, double> d(mean);
+    return d(generator);
 }
 
 int Randomizer::Geometric(double p)
 {
     if (p <= 0) return 0;
-    return gsl_ran_geometric(r, p);
+    geometric_distribution<unsigned int, double> d(p);
+    return d(generator);
 }
 
 int Randomizer::Round(double x)
@@ -204,11 +228,16 @@ int Randomizer::Round(double x)
     return sign * (intpart + Bernoulli(fracpart));
 }
 
-template <typename T>
-void Randomizer::Shuffle(std::vector<T>& vec)
+unsigned int Randomizer::operator()()
 {
-    gsl_ran_shuffle(r, &vec[0], vec.size(), sizeof(vec[0]));
+    return generator();
 }
+
+unsigned int Randomizer::operator()(unsigned int size)
+{
+    return Discrete(size);
+}
+
 
 
 #endif

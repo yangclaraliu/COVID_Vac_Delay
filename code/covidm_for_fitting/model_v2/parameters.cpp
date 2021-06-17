@@ -40,99 +40,54 @@ void ParamSet(vector<Matrix>& variable, Rcpp::RObject& value)
     }
 }
 
-void ParamSet(vector<ProcessSpec>& variable, Rcpp::RObject& value)
+void ParamSet(ProcessList& variable, Rcpp::RObject& value)
 {
+    
+    // translate each r object into a process object
+    // ids are not set until all process objects available
+    // and are added to a ProcessList
     Rcpp::List pl = Rcpp::as<Rcpp::List>(value);
-    unsigned int pc_id = 0;
-    vector<string> pc_names;
-    for (unsigned int i = 0; i < pl.size(); ++i)
-    {
-        Rcpp::List pli = Rcpp::as<Rcpp::List>(pl[i]);
-
+    vector<ProcessSpec> processes;
+    processes.reserve(pl.size() + 1);
+    
+    for (size_t i=0; i<pl.size(); i++) {
+        Rcpp::List rprocessobj = Rcpp::as<Rcpp::List>(pl[i]);
         ProcessSpec process;
-        process.source_name = Rcpp::as<string>(pli["source"]);
-        process.type = Rcpp::as<string>(pli["type"]);
-
-        process.names = Rcpp::as<vector<string>>(pli["names"]);
-        process.ids = vector<unsigned int>(process.names.size(), 0);
-        for (unsigned int j = 0; j < process.ids.size(); ++j)
-        {
-            if (process.names[j] == "null")
-            {
-                process.ids[j] = Null;
-            }
-            else
-            {
-                process.ids[j] = pc_id++;
-                pc_names.push_back(process.names[j]);
-            }
-        }
-        process.report = Rcpp::as<vector<string>>(pli["report"]);
-
+        process.source_name = Rcpp::as<string>(rprocessobj["source"]);
+        process.type = Rcpp::as<string>(rprocessobj["type"]);
+        process.names = Rcpp::as<vector<string>>(rprocessobj["names"]);
+        
+        process.report = Rcpp::as<vector<string>>(rprocessobj["report"]);
+        
         Matrix m_prob, m_delays;
-        Rcpp::RObject r_prob = Rcpp::as<Rcpp::RObject>(pli["prob"]);
-        Rcpp::RObject r_delays = Rcpp::as<Rcpp::RObject>(pli["delays"]);
+        Rcpp::RObject r_prob = Rcpp::as<Rcpp::RObject>(rprocessobj["prob"]);
+        Rcpp::RObject r_delays = Rcpp::as<Rcpp::RObject>(rprocessobj["delays"]);
         ParamSet(m_prob, r_prob);
         ParamSet(m_delays, r_delays);
-
-        for (unsigned int c = 0; c < m_prob.NCol(); ++c)
+        
+        for (unsigned int group = 0; group < m_prob.NCol(); ++group)
         {
             process.prob.push_back(vector<double>(m_prob.NRow(), 0.));
-            for (unsigned int r = 0; r < m_prob.NRow(); ++r)
-                process.prob[c][r] = m_prob(r, c);
+            for (unsigned int outcome = 0; outcome < m_prob.NRow(); ++outcome)
+                process.prob[group][outcome] = m_prob(outcome, group);
         }
-
-        for (unsigned int r = 0; r < m_delays.NRow(); ++r)
+        
+        for (unsigned int outcome = 0; outcome < m_delays.NRow(); ++outcome)
         {
             process.delays.push_back(Discrete());
             std::vector<double> uw(m_delays.NCol(), 0.);
             for (unsigned int c = 0; c < m_delays.NCol(); ++c)
-                uw[c] = m_delays(r, c);
+                uw[c] = m_delays(outcome, c);
             process.delays.back() = uw;
         }
-
-        variable.push_back(process);
+        
+        processes.push_back(process);
+        
     }
+    
+    
+    variable.Update(processes);
 
-    // Set source_ids
-    for (auto& pr : variable)
-    {
-        auto sn = std::find(pc_names.begin(), pc_names.end(), pr.source_name);
-        if (sn == pc_names.end())
-        {
-            if (pr.source_name == "S")
-                pr.source_id = srcS;
-            else if (pr.source_name == "E")
-                pr.source_id = srcE;
-            else if (pr.source_name == "E_Ip")
-                pr.source_id = srcEp;
-            else if (pr.source_name == "E_Ia")
-                pr.source_id = srcEa;
-            else if (pr.source_name == "Ip")
-                pr.source_id = srcIp;
-            else if (pr.source_name == "Is")
-                pr.source_id = srcIs;
-            else if (pr.source_name == "Ia")
-                pr.source_id = srcIa;
-            else if (pr.source_name == "I")
-                pr.source_id = srcI;
-            else if (pr.source_name == "cases_reported")
-                pr.source_id = srcCasesReported;
-            else if (pr.source_name == "new_E")
-                pr.source_id = srcNewE;
-            else if (pr.source_name == "new_Ea")
-                pr.source_id = srcNewEa;
-            else if (pr.source_name == "new_EEa")
-                pr.source_id = srcNewEEa;
-
-            else
-                throw logic_error("Unrecognized process source name " + pr.source_name);
-        }
-        else
-        {
-            pr.source_id = (unsigned int)(sn - pc_names.begin());
-        }
-    }
 }
 
 
@@ -143,7 +98,8 @@ bool PopulationParameters::Set(Parameters* parent, string& name, Rcpp::RObject& 
 
     if (false) {}
     _CheckSet(dE)
-    _CheckSet(dEa)
+    _CheckSet(dEv)
+    _CheckSet(dEv2)
     _CheckSet(dIp)
     _CheckSet(dIa)
     _CheckSet(dIs)
@@ -155,27 +111,23 @@ bool PopulationParameters::Set(Parameters* parent, string& name, Rcpp::RObject& 
     _CheckSet(contact_mult)
     _CheckSet(contact_lowerto)
     _CheckSet(u)
+    _CheckSet(uv)
+    _CheckSet(uv2)
     _CheckSet(fIp)
     _CheckSet(fIa)
     _CheckSet(fIs)
     _CheckSet(y)
+    _CheckSet(yv)
+    _CheckSet(yv2)
     _CheckSet(omega)
     _CheckSet(rho)
     _CheckSet(tau)
     _CheckSet(v)
-    _CheckSet(v12)
-    _CheckSet(v2)
     _CheckSet(ev)
-    _CheckSet(ei_v)
-    _CheckSet(ed_vi)
+    _CheckSet(v2)
     _CheckSet(ev2)
-    _CheckSet(ei_v2)
-    _CheckSet(ed_vi2)
-    _CheckSet(pi_r)
-    _CheckSet(pd_ri)
     _CheckSet(wn)
     _CheckSet(wv)
-    _CheckSet(wv2)
     _CheckSet(A)
     _CheckSet(B)
     _CheckSet(D)
@@ -215,7 +167,8 @@ bool PopulationParameters::Set(Parameters* parent, string& name, vector<double>&
 
     if (false) {}
     _CheckSet(dE)
-    _CheckSet(dEa)
+    _CheckSet(dEv)
+    _CheckSet(dEv2)
     _CheckSet(dIp)
     _CheckSet(dIa)
     _CheckSet(dIs)
@@ -227,27 +180,23 @@ bool PopulationParameters::Set(Parameters* parent, string& name, vector<double>&
     _CheckSet(contact_mult)
     _CheckSet(contact_lowerto)
     _CheckSet(u)
+    _CheckSet(uv)
+    _CheckSet(uv2)
     _CheckSet(fIp)
     _CheckSet(fIa)
     _CheckSet(fIs)
     _CheckSet(y)
+    _CheckSet(yv)
+    _CheckSet(yv2)
     _CheckSet(omega)
     _CheckSet(rho)
     _CheckSet(tau)
     _CheckSet(v)
-    _CheckSet(v12)
-    _CheckSet(v2)
     _CheckSet(ev)
-    _CheckSet(ei_v)
-    _CheckSet(ed_vi)
+    _CheckSet(v2)
     _CheckSet(ev2)
-    _CheckSet(ei_v2)
-    _CheckSet(ed_vi2)
-    _CheckSet(pi_r)
-    _CheckSet(pd_ri)
     _CheckSet(wn)
     _CheckSet(wv)
-    _CheckSet(wv2)
     _CheckSet(A)
     _CheckSet(B)
     _CheckSet(D)
@@ -300,7 +249,7 @@ void SetParameters(Parameters& P, Rcpp::List list, Randomizer& Rand)
     ParamAssign(unsigned int, report_every);
     ParamAssign(bool, fast_multinomial);
     ParamAssign(bool, deterministic);
-
+    
     if (P.report_every != 1/P.time_step)
         throw("report_every must be the reciprocal of time_step.");
 
@@ -315,7 +264,8 @@ void SetParameters(Parameters& P, Rcpp::List list, Randomizer& Rand)
             Rcpp::List popi = Rcpp::as<Rcpp::List>(populations[i]);
 
             ParamPopAssign(vector<double>, dE, i);
-            ParamPopAssign(vector<double>, dEa, i);
+            ParamPopAssign(vector<double>, dEv, i);
+            ParamPopAssign(vector<double>, dEv2, i);
             ParamPopAssign(vector<double>, dIp, i);
             ParamPopAssign(vector<double>, dIa, i);
             ParamPopAssign(vector<double>, dIs, i);
@@ -324,7 +274,8 @@ void SetParameters(Parameters& P, Rcpp::List list, Randomizer& Rand)
             if (P.fast_multinomial)
             {
                 P.pop[i].dE.mn_approx.Set(P, Rand, P.pop[i].dE.weights);
-                P.pop[i].dEa.mn_approx.Set(P, Rand, P.pop[i].dEa.weights);
+                P.pop[i].dEv.mn_approx.Set(P, Rand, P.pop[i].dEv.weights);
+                P.pop[i].dEv2.mn_approx.Set(P, Rand, P.pop[i].dEv2.weights);
                 P.pop[i].dIp.mn_approx.Set(P, Rand, P.pop[i].dIp.weights);
                 P.pop[i].dIa.mn_approx.Set(P, Rand, P.pop[i].dIa.weights);
                 P.pop[i].dIs.mn_approx.Set(P, Rand, P.pop[i].dIs.weights);
@@ -349,34 +300,30 @@ void SetParameters(Parameters& P, Rcpp::List list, Randomizer& Rand)
             ParamPopAssign(vector<double>, contact_mult, i);
             ParamPopAssign(vector<double>, contact_lowerto, i);
             ParamPopAssign(vector<double>, u, i);
+            ParamPopAssign(vector<double>, uv, i);
+            ParamPopAssign(vector<double>, uv2, i);
             ParamPopAssign(vector<double>, fIp, i);
             ParamPopAssign(vector<double>, fIa, i);
             ParamPopAssign(vector<double>, fIs, i);
             ParamPopAssign(vector<double>, y, i);
+            ParamPopAssign(vector<double>, yv, i);
+            ParamPopAssign(vector<double>, yv2, i);
             ParamPopAssign(vector<double>, omega, i);
             ParamPopAssign(vector<double>, rho, i);
             ParamPopAssign(vector<double>, tau, i);
             ParamPopAssign(vector<double>, v, i);
-            ParamPopAssign(vector<double>, v12, i);
-            ParamPopAssign(vector<double>, v2, i);
             ParamPopAssign(vector<double>, ev, i);
-            ParamPopAssign(vector<double>, ei_v, i);
-            ParamPopAssign(vector<double>, ed_vi, i);
+            ParamPopAssign(vector<double>, v2, i);
             ParamPopAssign(vector<double>, ev2, i);
-            ParamPopAssign(vector<double>, ei_v2, i);
-            ParamPopAssign(vector<double>, ed_vi2, i);
-            ParamPopAssign(vector<double>, pi_r, i);
-            ParamPopAssign(vector<double>, pd_ri, i);
             ParamPopAssign(vector<double>, wn, i);
             ParamPopAssign(vector<double>, wv, i);
-            ParamPopAssign(vector<double>, wv2, i);
             ParamPopAssign(vector<double>, A, i);
             ParamPopAssign(vector<double>, B, i);
             ParamPopAssign(vector<double>, D, i);
 
-            ParamPopAssign(vector<double>, season_A, i);
-            ParamPopAssign(vector<double>, season_T, i);
-            ParamPopAssign(vector<double>, season_phi, i);
+            ParamPopAssign(double, season_A, i);
+            ParamPopAssign(double, season_T, i);
+            ParamPopAssign(double, season_phi, i);
 
             ParamPopAssign(vector<double>, seed_times, i);
             ParamPopAssign(vector<double>, dist_seed_ages, i);
@@ -389,14 +336,14 @@ void SetParameters(Parameters& P, Rcpp::List list, Randomizer& Rand)
             P.pop[i].Recalculate();
         }
     }
-
+    
     // Read in processes
     if (list.containsElementNamed("processes"))
     {
         Rcpp::RObject r_processes = Rcpp::as<Rcpp::RObject>(list["processes"]);
         ParamSet(P.processes, r_processes);
     }
-
+    
     ParamMatrixAssign(travel);
 
     // Read in schedule (change set)
@@ -420,7 +367,6 @@ void SetParameters(Parameters& P, Rcpp::List list, Randomizer& Rand)
             else if (mode_name == "multiply")   mode = Change::Multiply;
             else if (mode_name == "lowerto")    mode = Change::LowerTo;
             else if (mode_name == "raiseto")    mode = Change::RaiseTo;
-            else if (mode_name == "bypass")     mode = Change::Bypass;
             else                                throw std::logic_error("Unrecognized change mode " + mode_name + ".");
 
             vector<double> times = Rcpp::as<vector<double>>(sched["times"]);
@@ -433,4 +379,5 @@ void SetParameters(Parameters& P, Rcpp::List list, Randomizer& Rand)
             P.changes.ch.push_back(Change(P, pops, runs, param_name, mode, times, values));
         }
     }
+    
 }
