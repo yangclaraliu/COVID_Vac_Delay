@@ -17,11 +17,15 @@ source(paste0(cm_path, "/R/covidm.R"))
 # ve = RCT results, disease blocking
 # ei_v = infection-blocking VE
 # ed_vi = internal parameter that involves conditionality
-i = 12
+
 params <- gen_country_basics("Thailand") %>% 
   update_vac_char(., 
-                  ve_i = 0.6, ve_i2 = 0.9,
-                  ve_d = 0, ve_d2 = 0) 
+                  ve_i   = ve$ve_i_o[1],  # infection blocking VE post 1 dose
+                  v2e_i  = ve$ve_i_o[2],  # infection blocking VE post 2 doses
+                  ve_d   = ve$ve_d[1],    # clinical fraction among breakthrough post 1 dose
+                  v2e_d  = ve$ve_d[2],    # clinical fraction among breakthrough post 2 doses
+                  wv = 1/120
+                    ) 
 
 params <- vac_policy(para = params,
                      # these two parameters define the supply conditions

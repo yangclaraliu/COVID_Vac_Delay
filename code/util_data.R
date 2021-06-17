@@ -105,14 +105,17 @@ burden_processes <- list(
   )
 )
 
-##### vaccine efficacy ####
-exp_ve <- function(ve,  # overall disease-blocking effects 
-                   ei_v # overall infection-blocking effefts, y
+##### expand VE estimates to meet the needs of the model ####
+exp_ve <- function(ve_d_o,  # disease blocking VE observed
+                   ve_i_o   # infection blocking VE assumed
 ){
-  ed_vi <- (ve - ei_v)/(1 - ei_v)
-  return(ed_vi)
+  # calculate of clinical fraction reduction
+  ve_d <- (ve_d_o - ve_i_o)/(1 - ve_i_o)
+  return(ve_d)
 }
 
-ve_tab  <- CJ(ve = c(0.5, 0.75, 0.95), ei_v = c(0, 0.25, 0.5, 0.75, 0.95)) %>% 
-  dplyr::filter(ve >= ei_v) %>% 
-  mutate(ed_vi = exp_ve(ve, ei_v))
+# Table 1 from RORO's report
+data.table(ve_i_o = c(0.67, 0.68),
+           ve_d_o = c(0.67, 0.78)) %>% 
+  mutate(
+    ve_d = exp_ve(ve_d_o, ve_i_o)) -> ve

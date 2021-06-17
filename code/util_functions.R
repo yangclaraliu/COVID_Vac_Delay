@@ -65,32 +65,24 @@ gen_country_basics <- function(country,
 }
 
 update_vac_char <- function(para,
-                            uv = NULL,
-                            uv2 = NULL,
-                            yv = NULL,
-                            yv2 = NULL
+                            ve_i  = NULL, # infection blocking VE post 1 dose
+                            v2e_i = NULL, # infection blocking VE post 2 doses
+                            ve_d  = NULL, # perc reduction in clinical fraction post 1 dose
+                            v2e_d = NULL, # perc reduction in clinical fraction post 2 doses 
+                            wv = NULL # 1/waning period
                             ){
   
   n_age <- length(para$pop[[1]]$size)
-  
-  # currently closing two-dose setup
-  # para$pop[[1]]$ev2 <- rep(0, n_age)
-  
-  # 
-  # para$pop[[1]]$pd_ri <- rep(1, n_age)
-  # para$pop[[1]]$pi_r <- rep(1, n_age)
-  
+
   # key parameters on infection and disease blocking mechanisms
-  para$pop[[1]]$ei_v <- rep(ve_i, n_age)
-  para$pop[[1]]$ed_vi <- rep(ve_d, n_age)
-  para$pop[[1]]$ei_v2 <- rep(ve_i2, n_age)
-  para$pop[[1]]$ed_vi2 <- rep(ve_d2, n_age)
+  para$pop[[1]]$uv  <- rep(para$pop[[1]]$u * (1 - ve_i),  n_age)
+  para$pop[[1]]$uv2 <- rep(para$pop[[1]]$u * (1 - v2e_i), n_age)
+  para$pop[[1]]$yv  <- rep(para$pop[[1]]$y * (1 - ve_d),  n_age)
+  para$pop[[1]]$yv2 <- rep(para$pop[[1]]$y * (1 - v2e_d), n_age)
   
   # waning vaccine-induced immunity
-  para$pop[[1]]$wv = rep((1/waning_vac), n_age)
-  para$pop[[1]]$wv2 = rep((1/waning_vac2), n_age)
-  
-  
+  para$pop[[1]]$wv = rep(wv, n_age)
+
   # return results
   return(para)
 }
@@ -127,7 +119,7 @@ vac_policy <- function(para,
   #tmp_schedule <- 
   data.frame(milestone_date = c(para$date0, 
                                 milestone_date, 
-                                para$time1),
+                                as.character(ymd(date_start) + para$time1)),
              milestone_cov = c(NA, 
                                milestone_cov, 
                                NA)) %>% 
@@ -274,134 +266,15 @@ vac_policy <- function(para,
       daily_vac_scenarios[[1]][t_marker3, "supply_daily"]*tmp2_pop_prop[i]
   }
   
-  matrix(0, 
-         ncol = length(para$pop[[1]]$size),
-         nrow = max(as.numeric(tmp_schedule$t), na.rm = T)) %>% 
-    as_tibble() %>% 
-    setNames(paste0("Y",1:16, "_d1_S")) %>%
-    # record the one that effectively still remains in V
-    bind_cols(matrix(0, 
-                     ncol = length(para$pop[[1]]$size),
-                     nrow = max(as.numeric(tmp_schedule$t), na.rm = T)) %>% 
-                as_tibble() %>% 
-                setNames(paste0("Y",1:16, "_d1_V"))) %>%
-    bind_cols(matrix(0, 
-                     ncol = length(para$pop[[1]]$size),
-                     nrow = max(as.numeric(tmp_schedule$t), na.rm = T)) %>% 
-                as_tibble() %>% 
-                setNames(paste0("Y",1:16, "_d1_SV2"))) %>%
-    bind_cols(matrix(0, 
-                     ncol = length(para$pop[[1]]$size),
-                     nrow = max(as.numeric(tmp_schedule$t), na.rm = T)) %>% 
-                as_tibble() %>% 
-                setNames(paste0("Y",1:16, "_d1_VV2"))) %>%
-    bind_cols(., daily_vac_scenarios[[1]]) -> daily_vac_scenarios[[1]]
-  
-  for(i in 5:length(para$pop[[1]]$group_names)){
-    tag1 <- paste0("Y",i,"_d1")
-    tag2 <- paste0("Y",i,"_d2")
-    tag3 <- paste0("Y",i,"_d1_S")
-    tag4 <- paste0("Y",i,"_d1_V")
-    tag5 <- paste0("Y",i,"_d1_SV2")
-    tag6 <- paste0("Y",i,"_d1_VV2")
-    p_wane <- para$pop[[1]]$wv[1]#1-exp(-para$pop[[1]]$wv[1])
-    
-    # phase 1, only vaccinating 60+ 
-    for(j in 2:max(t_marker)){
-      # new V = newly vaccinated + those who didn't wane
-      daily_vac_scenarios[[1]][j, tag4] <- 
-        daily_vac_scenarios[[1]][j, tag1] + daily_vac_scenarios[[1]][j-1, tag4]*(1-p_wane)
-      # new S waned back from V1
-      daily_vac_scenarios[[1]][j, tag3] <- 
-        daily_vac_scenarios[[1]][j-1, tag4]*p_wane
-    }
-    
-    # convert those waned from V1 to S from daily to cumulative measure
-    daily_vac_scenarios[[1]][, tag3]  <- 
-      cumsum(daily_vac_scenarios[[1]][, tag3])
-    
-    # after vaccinating everyone with the first dose, move on to allocating d2
-    # starting from SV2
-    # daily_vac_scenarios[[1]][max(t_marker) + 1, tag4] <-
-    #   daily_vac_scenarios[[1]][max(t_marker), tag4]*(1-para$pop[[1]]$wv[1])
-    # 
-    # daily_vac_scenarios[[1]][max(t_marker) + 1, tag3] <-
-    #   daily_vac_scenarios[[1]][max(t_marker), tag3] +
-    #   daily_vac_scenarios[[1]][max(t_marker), tag4]*(para$pop[[1]]$wv[1]) -
-    #   daily_vac_scenarios[[1]][max(t_marker) + 1, tag2]
-    # 
-    # daily_vac_scenarios[[1]][max(t_marker) + 1, tag5] <- 
-    #   daily_vac_scenarios[[1]][max(t_marker) + 1, tag2]
-    
-    if(i >= 13){
-      k = max(t_marker) + 1
-      repeat{
-        daily_vac_scenarios[[1]][k, tag4] <-
-          (daily_vac_scenarios[[1]][k-1, tag4])*(1-p_wane)
-        
-        daily_vac_scenarios[[1]][k, tag3] <-
-          daily_vac_scenarios[[1]][k-1, tag3] +
-          (daily_vac_scenarios[[1]][k, tag4])*(p_wane) -
-          daily_vac_scenarios[[1]][k, tag2]
-        
-        daily_vac_scenarios[[1]][k, tag5] <-
-          daily_vac_scenarios[[1]][k, tag2]
-        
-        if(daily_vac_scenarios[[1]][k, tag3] < 0 |
-           is.na(daily_vac_scenarios[[1]][k, tag3])){
-          daily_vac_scenarios[[1]][k, tag3] <- 0
-          
-          daily_vac_scenarios[[1]][k, tag5] <-
-            daily_vac_scenarios[[1]][k-1, tag3] +
-            (daily_vac_scenarios[[1]][k, tag4])*(p_wane)
-          
-          daily_vac_scenarios[[1]][k, tag6] <-
-            daily_vac_scenarios[[1]][k, tag2] -
-            (daily_vac_scenarios[[1]][k, tag5])
-          
-          daily_vac_scenarios[[1]][k, tag4] <-
-            (daily_vac_scenarios[[1]][k-1, tag4])*(1-p_wane) - 
-            daily_vac_scenarios[[1]][k, tag6]
-          k = k+1
-          break
-        }
-        k = k+1
-      }
-      
-      daily_vac_scenarios[[1]][k:nrow(daily_vac_scenarios[[1]]), tag3] <- 0
-      
-      repeat{
-        # flux changes to V, waning out and then vaccinate out
-        daily_vac_scenarios[[1]][k, tag4] <-
-          (daily_vac_scenarios[[1]][k-1, tag4])*(1-p_wane) -
-          (daily_vac_scenarios[[1]][k, tag2] - 
-             daily_vac_scenarios[[1]][k-1, tag4]*(p_wane))
-        
-        daily_vac_scenarios[[1]][k, tag3] <-
-          (daily_vac_scenarios[[1]][k-1, tag4])*(p_wane) -
-          (daily_vac_scenarios[[1]][k-1, tag4])*(p_wane)
-        
-        # flux change to SV2 path
-        daily_vac_scenarios[[1]][k, tag5] <-
-          (daily_vac_scenarios[[1]][k-1, tag4])*(p_wane)
-        
-        # flux change to VV2 path 
-        daily_vac_scenarios[[1]][k, tag6] <-
-          (daily_vac_scenarios[[1]][k, tag2]) - 
-          (daily_vac_scenarios[[1]][k-1, tag4])*(p_wane)
-        
-        if(daily_vac_scenarios[[1]][k, tag4] < 0 |
-           is.na(daily_vac_scenarios[[1]][k, tag4])){
-          k = k + 1
-          daily_vac_scenarios[[1]][k, tag6] <-
-            (daily_vac_scenarios[[1]][k, tag2])
-          break
-        }
-        k = k + 1
-      }
-      
-    }
-  }
+
+  daily_vac_scenarios[[1]] %>% 
+    dplyr::select(t, starts_with("Y", ignore.case = T)) %>% 
+    pivot_longer(starts_with("Y", ignore.case = T)) %>% 
+    separate(name,into = c("ag", "dose"), sep = "_") %>% 
+    mutate(t = as.numeric(t),
+           ag = parse_number(ag)) %>% 
+    ggplot(., aes(x = t, y = value, color = dose)) +
+    geom_line() + facet_wrap(~ag)
   
   ##### scenario 2 #####
   # (1) complete vaccinating 60+ with dose 1, reaching the uptake goal 
