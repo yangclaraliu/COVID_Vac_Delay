@@ -1,20 +1,6 @@
 // distribution.cpp
 
-// [[Rcpp::plugins(cpp11)]]
-// [[Rcpp::plugins(openmp)]]
-// [[Rcpp::depends(BH)]]
-
 #include "distribution.h"
-#include <boost/math/special_functions/gamma.hpp>
-#include <boost/math/special_functions/beta.hpp>
-#include <boost/math/special_functions/erf.hpp>
-using boost::math::lgamma;
-using boost::math::gamma_p;
-using boost::math::ibeta;
-using boost::math::erf;
-
-const double pi = 3.14159265358979323846;
-const double sqrt2 = 1.41421356237309504880;
 
 
 const std::string Distribution::Types[] = { "Cauchy", "LogNormal", "Normal", "Uniform", "Beta", "Exponential", "Gamma", "Rounded" };
@@ -68,10 +54,10 @@ double Distribution::Random(Randomizer& R)
 
 double Distribution::RandomInit(Randomizer& R)
 {
-    if (i1 < i0)
-        return Random(R);
-    else
+    if (R.Bernoulli(i_amount))
         return R.Uniform(i0, i1);
+    else
+        return Random(R);
 }
 
 double Distribution::LogProbability(double x)
@@ -103,13 +89,13 @@ double Distribution::LogProbability(double x)
             break;
         case Beta:
             if (a == 1 && b == 1) d = 0; // needed because at x = 0 or x = 1 when alpha = beta = 1, below formula fails
-            else d = lgamma(a + b) - lgamma(a) - lgamma(b) + (a - 1) * log(x) + (b - 1) * log(1 - x);
+            else d = gsl_sf_lngamma(a + b) - gsl_sf_lngamma(a) - gsl_sf_lngamma(b) + (a - 1) * log(x) + (b - 1) * log(1 - x);
             break;
         case Exponential:
             d = -log(a) - a * x;
             break;
         case Gamma:
-            d = -lgamma(a) - a * log(b) + (a - 1) * log(x) - x / b;
+            d = -gsl_sf_lngamma(a) - a * log(b) + (a - 1) * log(x) - x / b;
             break;
         case Rounded:
             if (x < a)      { double sd = ShoulderArea * (b - a) / ((1 - ShoulderArea) * 2.50662827463); d = log(ShoulderArea) - (x - a) * (x - a) / (2 * sd * sd) - log(sd) - 0.918938533204673; }
@@ -137,15 +123,17 @@ void Distribution::Init(Type t, std::vector<double> parameters, std::vector<doub
 {
     type = t;
 
-    auto set = [](double& a, double& b, double A, double B, std::vector<double> v) {
+    auto set = [](double& a, double& b, double& c, double A, double B, double C, std::vector<double> v) {
         a = v.size() > 0 ? v[0] : A;
         b = v.size() > 1 ? v[1] : B;
+        c = v.size() > 2 ? v[2] : C;
     };
-
-    set(a, b, t <= Uniform ? 0 : 1, 1, parameters);
-    set(t0, t1, std::numeric_limits<double>::lowest(), std::numeric_limits<double>::max(), trunc);
-    set(s0, s1, 0., 1., shift);
-    set(i0, i1, 0., -1., init);
+    
+    double blank;
+    set( a,  b,    blank,   t <= Uniform ? 0 : 1, 1, 0, parameters);
+    set(t0, t1,    blank,   std::numeric_limits<double>::lowest(), std::numeric_limits<double>::max(), 0, trunc);
+    set(s0, s1,    blank,   0., 1., 0, shift);
+    set(i0, i1, i_amount,   0., -1., 0, init);
 
     SetTrunc(t0, t1);
 }
@@ -207,32 +195,32 @@ void Distribution::SetTrunc(double xmin, double xmax)
         switch (type)
         {
             case Cauchy:
-                cdf0 = (1. / pi) * atan((q0 - a) / b) + 0.5;
-                cdf1 = (1. / pi) * atan((q1 - a) / b) + 0.5;
+                cdf0 = gsl_cdf_cauchy_P(q0 - a, b);
+                cdf1 = gsl_cdf_cauchy_P(q1 - a, b);
                 break;
             case LogNormal:
-                cdf0 = 0.5 * (1. + erf((log(q0) - a) / (sqrt2 * b)));
-                cdf1 = 0.5 * (1. + erf((log(q1) - a) / (sqrt2 * b)));
+                cdf0 = gsl_cdf_lognormal_P(q0, a, b);
+                cdf1 = gsl_cdf_lognormal_P(q1, a, b);
                 break;
             case Normal:
-                cdf0 = 0.5 * (1. + erf((q0 - a) / (sqrt2 * b)));
-                cdf1 = 0.5 * (1. + erf((q1 - a) / (sqrt2 * b)));
+                cdf0 = gsl_cdf_gaussian_P(q0 - a, b);
+                cdf1 = gsl_cdf_gaussian_P(q1 - a, b);
                 break;
             case Uniform:
-                cdf0 = std::max(0., std::min(1., (q0 - a) / (b - a)));
-                cdf1 = std::max(0., std::min(1., (q1 - a) / (b - a)));
+                cdf0 = gsl_cdf_flat_P(q0, a, b);
+                cdf1 = gsl_cdf_flat_P(q1, a, b);
                 break;
             case Beta:
-                cdf0 = ibeta(a, b, q0);
-                cdf1 = ibeta(a, b, q1);
+                cdf0 = gsl_cdf_beta_P(q0, a, b);
+                cdf1 = gsl_cdf_beta_P(q1, a, b);
                 break;
             case Exponential:
-                cdf0 = 1. - exp(-a * q0);
-                cdf1 = 1. - exp(-a * q1);
+                cdf0 = gsl_cdf_exponential_P(q0, 1. / a);
+                cdf1 = gsl_cdf_exponential_P(q1, 1. / a);
                 break;
             case Gamma:
-                cdf0 = gamma_p(q0 / b, a);
-                cdf1 = gamma_p(q1 / b, a);
+                cdf0 = gsl_cdf_gamma_P(q0, a, b);
+                cdf1 = gsl_cdf_gamma_P(q1, a, b);
                 break;
             case Rounded:
                 cdf0 = RoundedUniformCDF(a, b, ShoulderArea, q0);
@@ -241,7 +229,7 @@ void Distribution::SetTrunc(double xmin, double xmax)
             default:
                 throw std::runtime_error("No distribution type in Distribution::SetTrunc.");
         }
-        t_lp_adj = -log(cdf1 - cdf0);
+        t_lp_adj = -std::log(cdf1 - cdf0);
     }
 }
 
@@ -308,7 +296,7 @@ double Distribution::RoundedUniformCDF(double min, double max, double shoulder, 
 {
     double sd = shoulder * (max - min) / ((1 - shoulder) * 2.50662827463);
 
-    if (x < min)        return 0.5 * (1. + erf((x - min) / (sqrt2 * sd))) * shoulder;
+    if (x < min)        return gsl_cdf_gaussian_P(x - min, sd) * shoulder;
     else if (x < max)   return shoulder / 2 + (x - min) / (max - min) * (1 - shoulder);
-    else                return 0.5 * (1. + erf((x - max) / (sqrt2 * sd))) * shoulder + (1 - shoulder);
+    else                return gsl_cdf_gaussian_P(x - max, sd) * shoulder + (1 - shoulder);
 }

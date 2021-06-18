@@ -15,7 +15,6 @@ params <- cm_parameters_SEI3R(cn)
 res <- cm_simulate(params)
 
 
- 
 # params <- gen_country_basics("Thailand") 
 # 
 # cm_simulate(params)
