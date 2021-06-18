@@ -6,7 +6,7 @@ cm_path = "~/Dropbox/nCoV/covidm/"; ### CHANGE THIS to reflect the path to covid
 cm_force_rebuild = F;
 cm_build_verbose = T;
 cm_version = 2;
-source(paste0(cm_path, "/R/covidm.R"))
+source(file.path(cm_path, "R", "covidm.R"))
 
 # build parameters for all of UK, down to the regional level (level 2).
 params = cm_parameters_SEI3R(cm_uk_locations("UK", 2), deterministic = T);

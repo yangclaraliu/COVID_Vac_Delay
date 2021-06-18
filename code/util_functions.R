@@ -48,7 +48,7 @@ gen_country_basics <- function(country,
     para$pop[[i]]$seed_times <- c(1:14)
   }
   
-  para$processes = burden_processes
+  # para$processes = burden_processes
   
   # para$schedule[["mobility"]] = list(
   #   parameter = "contact",
@@ -75,10 +75,10 @@ update_vac_char <- function(para,
   n_age <- length(para$pop[[1]]$size)
 
   # key parameters on infection and disease blocking mechanisms
-  para$pop[[1]]$uv  <- rep(para$pop[[1]]$u * (1 - ve_i),  n_age)
-  para$pop[[1]]$uv2 <- rep(para$pop[[1]]$u * (1 - v2e_i), n_age)
-  para$pop[[1]]$yv  <- rep(para$pop[[1]]$y * (1 - ve_d),  n_age)
-  para$pop[[1]]$yv2 <- rep(para$pop[[1]]$y * (1 - v2e_d), n_age)
+  para$pop[[1]]$uv  <- para$pop[[1]]$u * (1 - ve_i)
+  para$pop[[1]]$uv2 <- para$pop[[1]]$u * (1 - v2e_i)
+  para$pop[[1]]$yv  <- para$pop[[1]]$y * (1 - ve_d)
+  para$pop[[1]]$yv2 <- para$pop[[1]]$y * (1 - v2e_d)
   
   # waning vaccine-induced immunity
   para$pop[[1]]$wv = rep(wv, n_age)
@@ -266,16 +266,6 @@ vac_policy <- function(para,
       daily_vac_scenarios[[1]][t_marker3, "supply_daily"]*tmp2_pop_prop[i]
   }
   
-
-  daily_vac_scenarios[[1]] %>% 
-    dplyr::select(t, starts_with("Y", ignore.case = T)) %>% 
-    pivot_longer(starts_with("Y", ignore.case = T)) %>% 
-    separate(name,into = c("ag", "dose"), sep = "_") %>% 
-    mutate(t = as.numeric(t),
-           ag = parse_number(ag)) %>% 
-    ggplot(., aes(x = t, y = value, color = dose)) +
-    geom_line() + facet_wrap(~ag)
-  
   ##### scenario 2 #####
   # (1) complete vaccinating 60+ with dose 1, reaching the uptake goal 
   # (2) vaccinate other adults with dose 1
@@ -324,91 +314,6 @@ vac_policy <- function(para,
     daily_vac_scenarios[[2]][t_marker3,tmp_tar2[i]] <-
       daily_vac_scenarios[[2]][t_marker3, "supply_daily"]*tmp_pop_prop[i]
   }
-  
-  # create empty rows to record things
-  matrix(0, 
-         ncol = length(para$pop[[1]]$size),
-         nrow = max(as.numeric(tmp_schedule$t), na.rm = T)) %>% 
-    as_tibble() %>% 
-    setNames(paste0("Y",1:16, "_d1_S")) %>%
-    # record the one that effectively still remains in V
-    bind_cols(matrix(0, 
-                     ncol = length(para$pop[[1]]$size),
-                     nrow = max(as.numeric(tmp_schedule$t), na.rm = T)) %>% 
-                as_tibble() %>% 
-                setNames(paste0("Y",1:16, "_d1_V"))) %>%
-    bind_cols(matrix(0, 
-                     ncol = length(para$pop[[1]]$size),
-                     nrow = max(as.numeric(tmp_schedule$t), na.rm = T)) %>% 
-                as_tibble() %>% 
-                setNames(paste0("Y",1:16, "_d1_SV2"))) %>%
-    bind_cols(matrix(0, 
-                     ncol = length(para$pop[[1]]$size),
-                     nrow = max(as.numeric(tmp_schedule$t), na.rm = T)) %>% 
-                as_tibble() %>% 
-                setNames(paste0("Y",1:16, "_d1_VV2"))) %>%
-    bind_cols(., daily_vac_scenarios[[2]]) -> daily_vac_scenarios[[2]]
-  
-  # allocate vaccines
-  for(i in 5:length(para$pop[[1]]$group_names)){
-    tag1 <- paste0("Y",i,"_d1")
-    tag2 <- paste0("Y",i,"_d2")
-    tag3 <- paste0("Y",i,"_d1_S")
-    tag4 <- paste0("Y",i,"_d1_V")
-    tag5 <- paste0("Y",i,"_d1_SV2")
-    tag6 <- paste0("Y",i,"_d1_VV2")
-    p_wane <- para$pop[[1]]$wv[1]#1-exp(-para$pop[[1]]$wv[1])
-    
-    # phase 1, only vaccinating 60+ 
-    for(j in 2:max(t_marker2)){
-      # new V = newly vaccinated + those who didn't wane
-      daily_vac_scenarios[[2]][j, tag4] <- 
-        daily_vac_scenarios[[2]][j, tag1] + daily_vac_scenarios[[2]][j-1, tag4]*(1-p_wane)
-      # new S waned back from V1
-      daily_vac_scenarios[[2]][j, tag3] <- 
-        daily_vac_scenarios[[2]][j-1, tag3] +
-        daily_vac_scenarios[[2]][j-1, tag4]*p_wane
-    }
-    
-    if(i >= 13){
-      k = max(t_marker2) + 1
-      repeat{
-        daily_vac_scenarios[[2]][k, tag4] <-
-          (daily_vac_scenarios[[2]][k-1, tag4])*(1-p_wane)
-        
-        daily_vac_scenarios[[2]][k, tag3] <-
-          daily_vac_scenarios[[2]][k-1, tag3] +
-          (daily_vac_scenarios[[2]][k, tag4])*(p_wane) -
-          daily_vac_scenarios[[2]][k, tag2]
-        
-        daily_vac_scenarios[[2]][k, tag5] <-
-          daily_vac_scenarios[[2]][k, tag2]
-        
-        if(daily_vac_scenarios[[2]][k, tag3] < 0 |
-           is.na(daily_vac_scenarios[[2]][k, tag3])|
-           k >= nrow(daily_vac_scenarios[[2]])){
-          
-          daily_vac_scenarios[[2]][k, tag3] <-
-            daily_vac_scenarios[[2]][k-1, tag3] +
-            (daily_vac_scenarios[[2]][k-1, tag4])*(p_wane)
-          
-          daily_vac_scenarios[[2]][k, tag4] <-
-            (daily_vac_scenarios[[2]][k-1, tag4])*(1-p_wane)
-          
-          
-          daily_vac_scenarios[[2]][k, tag5] <-
-            daily_vac_scenarios[[2]][k, tag2]
-          
-          daily_vac_scenarios[[2]][k, tag6] <- 0
-          
-          
-          break
-        }
-        k = k+1
-      }
-    }
-  }
-  
   
   ##### scenario 3 #####
   # (1) start vaccinating the first phase older adults for dose 2
@@ -476,201 +381,19 @@ vac_policy <- function(para,
       daily_vac_scenarios[[3]][t_marker5, "supply_daily"]*tmp2_pop_prop[i]
   }
   
-  matrix(0, 
-         ncol = length(para$pop[[1]]$size),
-         nrow = max(as.numeric(tmp_schedule$t), na.rm = T)) %>% 
-    as_tibble() %>% 
-    setNames(paste0("Y",1:16, "_d1_S")) %>%
-    # record the one that effectively still remains in V
-    bind_cols(matrix(0, 
-                     ncol = length(para$pop[[1]]$size),
-                     nrow = max(as.numeric(tmp_schedule$t), na.rm = T)) %>% 
-                as_tibble() %>% 
-                setNames(paste0("Y",1:16, "_d1_V"))) %>%
-    bind_cols(matrix(0, 
-                     ncol = length(para$pop[[1]]$size),
-                     nrow = max(as.numeric(tmp_schedule$t), na.rm = T)) %>% 
-                as_tibble() %>% 
-                setNames(paste0("Y",1:16, "_d1_SV2"))) %>%
-    bind_cols(matrix(0, 
-                     ncol = length(para$pop[[1]]$size),
-                     nrow = max(as.numeric(tmp_schedule$t), na.rm = T)) %>% 
-                as_tibble() %>% 
-                setNames(paste0("Y",1:16, "_d1_VV2"))) %>%
-    bind_cols(., daily_vac_scenarios[[3]]) -> daily_vac_scenarios[[3]]
+  # daily_vac_scenarios[[3]] %>% 
+  #   dplyr::select(t, starts_with("Y", ignore.case = T)) %>% 
+  #   pivot_longer(starts_with("Y", ignore.case = T)) %>% 
+  #   separate(name,into = c("ag", "dose"), sep = "_") %>% 
+  #   mutate(t = as.numeric(t),
+  #          ag = parse_number(ag)) %>% 
+  #   ggplot(., aes(x = t, y = value, color = dose)) +
+  #   geom_line() + facet_wrap(~ag)
   
-  for(i in 5:length(para$pop[[1]]$group_names)){
-    tag1 <- paste0("Y",i,"_d1")
-    tag2 <- paste0("Y",i,"_d2")
-    tag3 <- paste0("Y",i,"_d1_S")
-    tag4 <- paste0("Y",i,"_d1_V")
-    tag5 <- paste0("Y",i,"_d1_SV2")
-    tag6 <- paste0("Y",i,"_d1_VV2")
-    p_wane <- para$pop[[1]]$wv[1]#1-exp(-para$pop[[1]]$wv[1])
-    
-    # phase 1, only vaccinating 60+ 
-    for(j in 2:max(t_marker)){
-      # new V = newly vaccinated + those who didn't wane
-      daily_vac_scenarios[[3]][j, tag4] <- 
-        daily_vac_scenarios[[3]][j, tag1] + daily_vac_scenarios[[3]][j-1, tag4]*(1-p_wane)
-      # new S waned back from V1
-      daily_vac_scenarios[[3]][j, tag3] <- 
-        daily_vac_scenarios[[3]][j-1, tag3]+
-        daily_vac_scenarios[[3]][j-1, tag4]*p_wane
-    }
-    
-    # convert those waned from V1 to S from daily to cumulative measure
-    # daily_vac_scenarios[[3]][, tag3]  <- 
-    #   cumsum(daily_vac_scenarios[[3]][, tag3])
-    
-    if(i >= 13){
-      # phase 2 start vaccinating the vaccinated individuals who has lost their 
-      # immunity
-      k = max(t_marker) + 1
-      repeat{
-        daily_vac_scenarios[[3]][k, tag4] <-
-          (daily_vac_scenarios[[3]][k-1, tag4])*(1-p_wane)
-        
-        daily_vac_scenarios[[3]][k, tag3] <-
-          daily_vac_scenarios[[3]][k-1, tag3] +
-          (daily_vac_scenarios[[3]][k, tag4])*(p_wane) -
-          daily_vac_scenarios[[3]][k, tag2]
-        
-        daily_vac_scenarios[[3]][k, tag5] <-
-          daily_vac_scenarios[[3]][k, tag2]
-        
-        if(daily_vac_scenarios[[3]][k, tag3] < 0 |
-           is.na(daily_vac_scenarios[[3]][k, tag3])){
-          daily_vac_scenarios[[3]][k, tag3] <- 0
-          
-          daily_vac_scenarios[[3]][k, tag5] <-
-            daily_vac_scenarios[[3]][k-1, tag3] +
-            (daily_vac_scenarios[[3]][k, tag4])*(p_wane)
-          
-          daily_vac_scenarios[[3]][k, tag6] <-
-            daily_vac_scenarios[[3]][k, tag2] -
-            (daily_vac_scenarios[[3]][k, tag5])
-          
-          daily_vac_scenarios[[3]][k, tag4] <-
-            (daily_vac_scenarios[[3]][k-1, tag4])*(1-p_wane) -
-            daily_vac_scenarios[[3]][k, tag6]
-          k = k+1
-          break
-        }
-        k = k+1
-      }
-      
-      daily_vac_scenarios[[3]][k:nrow(daily_vac_scenarios[[3]]), tag3] <- 0
-      
-      repeat{
-        # flux changes to V, waning out and then vaccinate out
-        daily_vac_scenarios[[3]][k, tag4] <-
-          (daily_vac_scenarios[[3]][k-1, tag4])*(1-p_wane) -
-          (daily_vac_scenarios[[3]][k, tag2] -
-             daily_vac_scenarios[[3]][k-1, tag4]*(p_wane))
-        
-        daily_vac_scenarios[[3]][k, tag3] <-
-          (daily_vac_scenarios[[3]][k-1, tag4])*(p_wane) -
-          (daily_vac_scenarios[[3]][k-1, tag4])*(p_wane)
-        
-        # flux change to SV2 path
-        daily_vac_scenarios[[3]][k, tag5] <-
-          (daily_vac_scenarios[[3]][k-1, tag4])*(p_wane)
-        
-        # flux change to VV2 path
-        daily_vac_scenarios[[3]][k, tag6] <-
-          (daily_vac_scenarios[[3]][k, tag2]) -
-          (daily_vac_scenarios[[3]][k-1, tag4])*(p_wane)
-        
-        if(daily_vac_scenarios[[3]][k, tag4] < 0 |
-           is.na(daily_vac_scenarios[[3]][k, tag4])){
-          k = k + 1
-          daily_vac_scenarios[[3]][k, tag6] <-
-            (daily_vac_scenarios[[3]][k, tag2])
-          break
-        }
-        k = k + 1
-      }
-      
-      for(j in t_marker3){
-        # new V = newly vaccinated + those who didn't wane
-        daily_vac_scenarios[[3]][j, tag4] <-
-          daily_vac_scenarios[[3]][j, tag1] + daily_vac_scenarios[[3]][j-1, tag4]*(1-p_wane)
-        # new S waned back from V1
-        daily_vac_scenarios[[3]][j, tag3] <-
-          daily_vac_scenarios[[3]][j-1, tag3] +
-          daily_vac_scenarios[[3]][j-1, tag4]*p_wane
-      }
-      
-      k = max(t_marker3) + 1
-      repeat{
-        daily_vac_scenarios[[3]][k, tag4] <-
-          (daily_vac_scenarios[[3]][k-1, tag4])*(1-p_wane)
-        
-        daily_vac_scenarios[[3]][k, tag3] <-
-          daily_vac_scenarios[[3]][k-1, tag3] +
-          (daily_vac_scenarios[[3]][k, tag4])*(p_wane) -
-          daily_vac_scenarios[[3]][k, tag2]
-        
-        daily_vac_scenarios[[3]][k, tag5] <-
-          daily_vac_scenarios[[3]][k, tag2]
-        
-        if(daily_vac_scenarios[[3]][k, tag3] < 0 |
-           is.na(daily_vac_scenarios[[3]][k, tag3])){
-          daily_vac_scenarios[[3]][k, tag3] <- 0
-          
-          daily_vac_scenarios[[3]][k, tag5] <-
-            daily_vac_scenarios[[3]][k-1, tag3] +
-            (daily_vac_scenarios[[3]][k, tag4])*(p_wane)
-          
-          daily_vac_scenarios[[3]][k, tag6] <-
-            daily_vac_scenarios[[3]][k, tag2] -
-            (daily_vac_scenarios[[3]][k, tag5])
-          
-          daily_vac_scenarios[[3]][k, tag4] <-
-            (daily_vac_scenarios[[3]][k-1, tag4])*(1-p_wane) -
-            daily_vac_scenarios[[3]][k, tag6]
-          k = k+1
-          break
-        }
-        k = k+1
-      }
-      
-      repeat{
-        # flux changes to V, waning out and then vaccinate out
-        daily_vac_scenarios[[3]][k, tag4] <-
-          (daily_vac_scenarios[[3]][k-1, tag4])*(1-p_wane) -
-          (daily_vac_scenarios[[3]][k, tag2] - 
-             daily_vac_scenarios[[3]][k-1, tag4]*(p_wane))
-        
-        daily_vac_scenarios[[3]][k, tag3] <-
-          (daily_vac_scenarios[[3]][k-1, tag4])*(p_wane) -
-          (daily_vac_scenarios[[3]][k-1, tag4])*(p_wane)
-        
-        # flux change to SV2 path
-        daily_vac_scenarios[[3]][k, tag5] <-
-          (daily_vac_scenarios[[3]][k-1, tag4])*(p_wane)
-        
-        # flux change to VV2 path 
-        daily_vac_scenarios[[3]][k, tag6] <-
-          (daily_vac_scenarios[[3]][k, tag2]) - 
-          (daily_vac_scenarios[[3]][k-1, tag4])*(p_wane)
-        
-        if(daily_vac_scenarios[[3]][k, tag4] < 0 |
-           is.na(daily_vac_scenarios[[3]][k, tag4])){
-          k = k + 1
-          daily_vac_scenarios[[3]][k, tag6] <-
-            (daily_vac_scenarios[[3]][k, tag2])
-          break
-        }
-        k = k + 1
-      }
-    }
-  }
 
   #### extract vac_para ####
   vac_para <- list()
-  # S --> V1
+  # first dose
   daily_vac_scenarios %>% 
     map(select, t, ends_with("d1"), date, supply_daily, supply_cum) %>% 
     bind_rows(.id = "scenario") %>% 
@@ -679,28 +402,19 @@ vac_policy <- function(para,
     map(filter, t == min(t)) %>% 
     bind_rows() %>% group_by(scenario) %>% group_split() -> vac_para[[1]]
   
-  # S --> V2
-  daily_vac_scenarios %>% 
-    map(select, t, ends_with("SV2"), date, supply_daily, supply_cum) %>% 
+  # second dose
+    daily_vac_scenarios %>% 
+    map(select, t, ends_with("d2"), date, supply_daily, supply_cum) %>% 
     bind_rows(.id = "scenario") %>% 
     group_by(supply_daily, scenario) %>% group_split() %>% 
     map(group_by_at, vars(starts_with("Y"))) %>% 
     map(filter, t == min(t)) %>% 
     bind_rows() %>% group_by(scenario) %>% group_split() -> vac_para[[2]]
   
-  # V --> V2
-  daily_vac_scenarios %>% 
-    map(select, t, ends_with("VV2"), date, supply_daily, supply_cum) %>% 
-    bind_rows(.id = "scenario") %>% 
-    group_by(supply_daily, scenario) %>% group_split() %>% 
-    map(group_by_at, vars(starts_with("Y"))) %>% 
-    map(filter, t == min(t)) %>% 
-    bind_rows() %>% group_by(scenario) %>% group_split() -> vac_para[[3]]
-
   vacc_vals <- list()
   # then convert these parameters to a format that's friendly with `covidm`
   # allocation
-  for(i in 1:3){
+  for(i in 1:2){
     vacc_vals[[i]] <- list()
     for(j in 1:3){
       vac_para[[i]][[j]] %>% 
@@ -716,7 +430,7 @@ vac_policy <- function(para,
   vacc_times <- list()
   # then convert these parameters to a format that's friendly with `covidm`
   # allocation
-  for(i in 1:3){
+  for(i in 1:2){
     vacc_times[[i]] <- list()
     for(j in 1:3){
       vac_para[[i]][[j]] %>% 
@@ -729,7 +443,7 @@ vac_policy <- function(para,
   res <- list()
   for(i in 1:3){
     res[[i]] <- para
-    res[[i]]$schedule[["SV1"]] =  
+    res[[i]]$schedule[["v"]] =  
       list(
       parameter = "v",
       pops = numeric(),
@@ -738,7 +452,7 @@ vac_policy <- function(para,
       times = vacc_times[[1]][[i]]
       )
     
-    res[[i]]$schedule[["SV2"]] =  
+    res[[i]]$schedule[["v2"]] =  
       list(
         parameter = "v2",
         pops = numeric(),
@@ -746,22 +460,13 @@ vac_policy <- function(para,
         values = vacc_vals[[2]][[i]],
         times = vacc_times[[2]][[i]]
       )
-    
-    res[[i]]$schedule[["VV2"]] =  
-      list(
-        parameter = "v12",
-        pops = numeric(),
-        mode = "assign",
-        values = vacc_vals[[3]][[i]],
-        times = vacc_times[[3]][[i]]
-      )
   }
   
   return(list(param = para, 
               res = res,
               p_supply = p_supply,
               daily_vac_scenarios = daily_vac_scenarios))
-}
+  }
 
 change_ve <- function(
   para = NULL,
@@ -773,45 +478,51 @@ change_ve <- function(
   require(magrittr)
   require(tidyverse)
   
+  n_age <- para$param$pop[[1]]$n_groups
   tmp_start <- para$res[[1]]$date0
-  tmp_end <- para$res[[1]]$time1
+  tmp_end <- ymd(tmp_start) + para$res[[1]]$time1
   
+  # create time series for uv
+  para$param$pop[[1]]$uv -> uv_old
+  1 - para$param$pop[[1]]$uv/para$param$pop[[1]]$u -> tmp_ve
+  (1 - tmp_ve*ve_reduction)*para$param$pop[[1]]$u -> uv_new
   
-  data.table(date = seq(ymd(tmp_start), ymd(tmp_end), 1)) %>% 
-    mutate(value = case_when(date >= tmp_start & date <= ymd(transition_start) ~ 1,
-                             date >= ymd(transition_end) ~ 1-ve_reduction)) -> tmp
+  data.table(date = seq(ymd(tmp_start), ymd(tmp_end), 1),
+             t = 0:para$res[[1]]$time1) %>%
+    .[,(paste0("uv_Y",1:16)) := as.numeric(NA)] %>% 
+    .[date >= tmp_start & date <= ymd(transition_start),c(paste0("uv_Y",1:16)) := as.list(uv_old)] %>% 
+    .[date >= ymd(transition_end),c(paste0("uv_Y",1:16)) := as.list(uv_new)] %>% 
+    mutate_at(vars(starts_with("uv_Y", ignore.case = T)), 
+              imputeTS::na_interpolation, option = "spline") -> tmp
+
+  # create time series for uv2
+  para$param$pop[[1]]$uv2 -> uv_old
+  1 - para$param$pop[[1]]$uv2/para$param$pop[[1]]$u -> tmp_ve
+  (1 - tmp_ve*ve_reduction)*para$param$pop[[1]]$u -> uv_new
   
-  tmp %<>% 
-    left_join(seq(ymd(transition_start), 
-                  ymd(transition_end), 
-                  1) %>% enframe %>% 
-                mutate(max = name - round(max(name)/2),
-                       sig = sigmoid::sigmoid(max, SoftMax = T),
-                       sig = round(sig, 2)) %>% 
-                rename(date = value),
-              by = "date"
-    ) %>%   
-    rowid_to_column(var = "t") %>% 
-    mutate(value = if_else(is.na(value), 1-sig*0.2, value),
-           t = as.numeric(t) - 1) %>% 
-    dplyr::select(-name, -max, -sig) %>% 
-    group_by(value) %>% group_split() %>% 
-    map(~.[1,]) %>% bind_rows() %>% arrange(date)
+  data.table(date = seq(ymd(tmp_start), ymd(tmp_end), 1),
+             t = 0:para$res[[1]]$time1) %>%
+    .[,(paste0("uv_Y",1:16)) := as.numeric(NA)] %>% 
+    .[date >= tmp_start & date <= ymd(transition_start),c(paste0("uv_Y",1:16)) := as.list(uv_old)] %>% 
+    .[date >= ymd(transition_end),c(paste0("uv_Y",1:16)) := as.list(uv_new)] %>% 
+    mutate_at(vars(starts_with("uv_Y", ignore.case = T)), 
+              imputeTS::na_interpolation, option = "spline") -> tmp2
   
+  # assign these things
   n_para <- length(para$res)
   for(i in 1:n_para){
-    para$res[[i]]$schedule[["ei_v_change"]] <- list(
-      parameter = "ei_v",
+    para$res[[i]]$schedule[["uv_change"]] <- list(
+      parameter = "uv",
       pops = numeric(),
-      mode = "multiply",
+      mode = "assign",
       values = tmp$value %>% map(rep, 16),
       times = tmp$t
     )
     
-    para$res[[i]]$schedule[["ei_v2_change"]] <- list(
-      parameter = "ei_v2",
+    para$res[[i]]$schedule[["uv2_change"]] <- list(
+      parameter = "uv2",
       pops = numeric(),
-      mode = "multiply",
+      mode = "assign",
       values = tmp$value %>% map(rep, 16),
       times = tmp$t
     )

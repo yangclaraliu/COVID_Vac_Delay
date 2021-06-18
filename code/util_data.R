@@ -38,11 +38,11 @@ P.severe <- probabilities[, ihr * (1 - picu)]
 P.death <- probabilities[, ifr]
 
 burden_processes <- list(
-  list(
-    source = "new_EEa", type = "multinomial", names = c("new_infections"), report = c("i"),
-    prob = matrix(1, nrow = 1, ncol = 16, byrow = T),
-    delays = matrix(cm_delay_skip(60, 0.25)$p, nrow = 1)
-  ),
+  # list(
+  #   source = "new_EEa", type = "multinomial", names = c("new_infections"), report = c("i"),
+  #   prob = matrix(1, nrow = 1, ncol = 16, byrow = T),
+  #   delays = matrix(cm_delay_skip(60, 0.25)$p, nrow = 1)
+  # ),
   
   list(
     source = "E", type = "multinomial", names = c("death", "null"), report = c("o", ""),

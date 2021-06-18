@@ -61,11 +61,15 @@ $pop[[1]]$dE
 
 Delay distribution controlling how long an individual stays in compartment E. Use cm_delay_gamma to make these
 
+$pop[[1]]$dEv
+
+As above, for vaccine-breakthrough infections
+
 $pop[[1]]$dIp
 $pop[[1]]$dIa
 $pop[[1]]$dIs
 
-As above
+As above, for infectious individuals (p_resymptomatic, a_symptomatic, s_ymptomatic)
 
 $pop[[1]]$dH
 [1] 1
@@ -143,10 +147,18 @@ $pop[[1]]$u
 
 Susceptibility. Age-group specific probability of getting infected when contacting an infected person.
 
+$pop[[1]]$uv
+
+ibid, but for vaccinees
+
 $pop[[1]]$y
  [1] 0.5 0.5 0.5 0.5 0.5 0.5 0.5 0.5 0.5 0.5 0.5 0.5 0.5 0.5 0.5 0.5
 
 Symptomatic / clinical fraction. Age-specific probability of showing symptoms given infection.
+
+$pop[[1]]$yv
+
+ibid, but for vaccinees
 
 $pop[[1]]$fIp
  [1] 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1

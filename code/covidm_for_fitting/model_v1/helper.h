@@ -1,4 +1,3 @@
-#include <gsl/gsl_sf_gamma.h>
 
 //
 // TIMING
@@ -138,5 +137,5 @@ void MNApprox::Set(Parameters& P, Randomizer& Rand, vector<double>& p)
     cycle.assign(NVariants, 0);
     for (unsigned int shift = 0; shift < 32; ++shift)
         for (unsigned int variant = 0; variant < NVariants; ++variant)
-            gsl_ran_multinomial(Rand.GSL_RNG(), p.size(), 1 << shift, &p[0], &x[shift][variant][0]);
+            Rand.Multinomial(1 << shift, p, x[shift][variant]);
 }

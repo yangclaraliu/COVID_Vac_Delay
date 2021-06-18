@@ -14,7 +14,15 @@ Population::Population(Parameters& P, unsigned int pindex)
 {
     // Set up built-in compartments
     N  = P.pop[p].size;
+
     S  = N;
+    // vaccinated (1 and 2 dose) & not R
+    Sv = vector<double>(S.size(), 0.);
+    Sv2 = vector<double>(S.size(), 0.);
+    // 1dosed waned
+    Sw = vector<double>(S.size(), 0.);
+    // vaccinated & R (1 and 2 dose)
+    
     E  = vector<Compartment>(S.size());
     // breakthrough infections
     Ev = vector<Compartment>(S.size());
@@ -24,13 +32,8 @@ Population::Population(Parameters& P, unsigned int pindex)
     Ia = vector<Compartment>(S.size());
     Is = vector<Compartment>(S.size());
     C  = vector<Compartment>(S.size());
+    
     R  = vector<double>(S.size(), 0.);
-    // vaccinated (1 and 2 dose) & not R
-    Sv = vector<double>(S.size(), 0.);
-    Sv2 = vector<double>(S.size(), 0.);
-    // 1dosed waned
-    Sw = vector<double>(S.size(), 0.);
-    // vaccinated & R (1 and 2 dose)
     Rv = vector<double>(S.size(), 0.);
     Rv2 = vector<double>(S.size(), 0.);
     
@@ -231,10 +234,13 @@ void Population::Tick(Parameters& P, Randomizer& Rand, double t, vector<double>&
         Rv[a]  += nR_Rv - nRv_Rv2;
         Rv2[a] += nRv_Rv2;
 
-        // S -> E; Sv -> Ev
+        // S -> E; Sv -> Ev; Sv2 -> Ev2; Sw -> E
         double nS_E = binomial(S[a], 1.0 - exp(-P.pop[p].u[a]*lambda[a] * P.time_step));
         S[a] -= nS_E;
-        E[a].Add(P, Rand, nS_E, P.pop[p].dE);
+        double nSw_E = binomial(Sw[a], 1.0 - exp(-P.pop[p].u[a]*lambda[a] * P.time_step));
+        Sw[a] -= nSw_E;
+        
+        E[a].Add(P, Rand, nS_E + nSw_E, P.pop[p].dE);
         
         double nSv_Ev = binomial(Sv[a], 1.0 - exp(-P.pop[p].uv[a]*lambda[a] * P.time_step));
         Sv[a] -= nSv_Ev;
