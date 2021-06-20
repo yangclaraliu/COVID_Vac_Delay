@@ -3,6 +3,7 @@ gen_country_basics <- function(country,
                                R0_assumed  = 2.7,
                                date_start = "2020-01-01",
                                date_end = "2022-12-31",
+                               processes = NULL,
                                deterministic = TRUE){
   
   require(countrycode)
@@ -48,7 +49,7 @@ gen_country_basics <- function(country,
     para$pop[[i]]$seed_times <- c(1:14)
   }
   
-  # para$processes = burden_processes
+  para$processes = processes
   
   # para$schedule[["mobility"]] = list(
   #   parameter = "contact",
@@ -266,6 +267,17 @@ vac_policy <- function(para,
       daily_vac_scenarios[[1]][t_marker3, "supply_daily"]*tmp2_pop_prop[i]
   }
   
+  # should we end the allocation sequence now?
+  end_now <- !max(t_marker3) < max(daily_vac_scenarios[[1]]$t)
+  if(!end_now){
+    t_marker4 <- which(daily_vac_scenarios[[1]]$supply_cum <= pop_marker[[1]]*2 + 
+                         pop_marker[[2]]*2) %>% .[. > max(t_marker3)]
+    for(i in 1:length(tmp2_tar2)){
+      daily_vac_scenarios[[1]][t_marker4,tmp2_tar2[i]] <-
+        daily_vac_scenarios[[1]][t_marker4, "supply_daily"]*tmp2_pop_prop[i]
+    }
+  }
+
   ##### scenario 2 #####
   # (1) complete vaccinating 60+ with dose 1, reaching the uptake goal 
   # (2) vaccinate other adults with dose 1
@@ -313,6 +325,18 @@ vac_policy <- function(para,
   for(i in 1:length(tmp_tar2)){
     daily_vac_scenarios[[2]][t_marker3,tmp_tar2[i]] <-
       daily_vac_scenarios[[2]][t_marker3, "supply_daily"]*tmp_pop_prop[i]
+  }
+  
+  
+  # should we end the allocation sequence now?
+  end_now <- !max(t_marker3) < max(daily_vac_scenarios[[2]]$t)
+  if(!end_now){
+    t_marker4 <- which(daily_vac_scenarios[[2]]$supply_cum <= pop_marker[[1]]*2 + 
+                         pop_marker[[2]]*2) %>% .[. > max(t_marker3)]
+    for(i in 1:length(tmp2_tar2)){
+      daily_vac_scenarios[[2]][t_marker4,tmp2_tar2[i]] <-
+        daily_vac_scenarios[[2]][t_marker4, "supply_daily"]*tmp2_pop_prop[i]
+    }
   }
   
   ##### scenario 3 #####
@@ -381,6 +405,18 @@ vac_policy <- function(para,
       daily_vac_scenarios[[3]][t_marker5, "supply_daily"]*tmp2_pop_prop[i]
   }
   
+  # should we end the allocation sequence now?
+  end_now <- !max(t_marker5) < max(daily_vac_scenarios[[3]]$t)
+  if(!end_now){
+    t_marker6 <- which(daily_vac_scenarios[[3]]$supply_cum <= pop_marker[[1]]*2 + 
+                         pop_marker[[2]]*2) %>% .[. > max(t_marker5)]
+    for(i in 1:length(tmp2_tar2)){
+      daily_vac_scenarios[[3]][t_marker6,tmp2_tar2[i]] <-
+        daily_vac_scenarios[[3]][t_marker6, "supply_daily"]*tmp2_pop_prop[i]
+    }
+  }
+  
+  
   # daily_vac_scenarios[[3]] %>% 
   #   dplyr::select(t, starts_with("Y", ignore.case = T)) %>% 
   #   pivot_longer(starts_with("Y", ignore.case = T)) %>% 
@@ -400,18 +436,23 @@ vac_policy <- function(para,
     group_by(supply_daily, scenario) %>% group_split() %>% 
     map(group_by_at, vars(starts_with("Y"))) %>% 
     map(filter, t == min(t)) %>% 
-    bind_rows() %>% group_by(scenario) %>% group_split() -> vac_para[[1]]
+    bind_rows() %>% group_by(scenario) %>% group_split() %>% 
+    map(mutate, t = parse_number(t)) %>% 
+    map(arrange, t) -> vac_para[[1]]
   
   # second dose
-    daily_vac_scenarios %>% 
+  daily_vac_scenarios %>% 
     map(select, t, ends_with("d2"), date, supply_daily, supply_cum) %>% 
     bind_rows(.id = "scenario") %>% 
     group_by(supply_daily, scenario) %>% group_split() %>% 
     map(group_by_at, vars(starts_with("Y"))) %>% 
     map(filter, t == min(t)) %>% 
-    bind_rows() %>% group_by(scenario) %>% group_split() -> vac_para[[2]]
-  
-  vacc_vals <- list()
+    bind_rows() %>% group_by(scenario) %>% group_split() %>% 
+    map(mutate, t = parse_number(t)) %>% 
+    map(arrange, t) -> vac_para[[2]]
+    
+      
+      vacc_vals <- list()
   # then convert these parameters to a format that's friendly with `covidm`
   # allocation
   for(i in 1:2){
@@ -462,8 +503,8 @@ vac_policy <- function(para,
       )
   }
   
-  return(list(param = para, 
-              res = res,
+  return(list(param = para, # baseline
+              res = res, # three strategies
               p_supply = p_supply,
               daily_vac_scenarios = daily_vac_scenarios))
   }
@@ -528,6 +569,15 @@ change_ve <- function(
     )
   }
   return(para)
+}
+
+##### expand VE estimates to meet the needs of the model ####
+exp_ve <- function(ve_d_o,  # disease blocking VE observed
+                   ve_i_o   # infection blocking VE assumed
+){
+  # calculate of clinical fraction reduction
+  ve_d <- (ve_d_o - ve_i_o)/(1 - ve_i_o)
+  return(ve_d)
 }
 
 

@@ -99,7 +99,9 @@ population_optionals <- lapply(list(
     "uv" = "non_negative(uv) & same_length(uv, size)",
     "uv2" = "non_negative(uv2) & same_length(uv2, size)",
     "yv" = "non_negative(yv) & same_length(yv, size)",
-    "yv2" = "non_negative(yv2) & same_length(yv2, size)"
+    "yv2" = "non_negative(yv2) & same_length(yv2, size)",
+    "v2" =  "non_negative(v2) & same_length(v2, size)",
+    "ev2" = "non_negative(ev2) & same_length(ev2, size)"
 ), function(exp) parse(text = exp))
 
 optional_substitutes <- c(
@@ -109,7 +111,8 @@ optional_substitutes <- c(
     "uv2" = "u",
     "yv" = "y",
     "yv2" = "y",
-    "v2" = "v"
+    "v2" = "v",
+    "ev2" = "ev"
 )
 
 req = function(

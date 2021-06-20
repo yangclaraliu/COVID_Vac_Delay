@@ -70,44 +70,41 @@ Rcpp::List cm_backend_simulate_v2(Rcpp::List parameters, unsigned int n_run = 1,
     Randomizer rand_master(seed);
     Parameters covidm_parameters;
     SetParameters(covidm_parameters, parameters, rand_master);
-    
-    if (!file_out.empty())
-    {
-        // Components unique to each run
-        vector<Randomizer> rand_r;
-        for (unsigned int r = 0; r < n_run; ++r)
-            rand_r.emplace_back(rand_master());
 
-        // Run the simulation
-        #pragma omp parallel for if(n_threads > 1) schedule(dynamic)
-        for (unsigned int r = 0; r < n_run; ++r)
+    // Components unique to each run
+    vector<Randomizer> rand_r;
+    for (unsigned int r = 0; r < n_run; ++r)
+        rand_r.emplace_back(rand_master());
+
+    vector<Reporter> rep_r(n_run, Reporter(covidm_parameters));
+
+    #pragma omp parallel for if(n_threads > 1) schedule(dynamic)
+    for (unsigned int r = 0; r < n_run; ++r)
+    {
+        Parameters P = covidm_parameters;
+        P.FilterForRun(r);
+        Reporter rep = RunSimulation(P, rand_r[r]);
+        if (!file_out.empty())
         {
-            Parameters P = covidm_parameters;
-            P.FilterForRun(r);
-            Reporter rep = RunSimulation(P, rand_r[r]);
             rep.Save(file_out + to_string(r), rand_r[r].Seed());
         }
+        else
+        {
+            rep_r[r] = rep;
+        }
+
+    }
+
+    if (!file_out.empty())
+    {
 
         return Rcpp::List::create(
             Rcpp::Named("file_out") = file_out
         );
+
     }
     else
     {
-        // Components unique to each run
-        vector<Randomizer> rand_r;
-        vector<Reporter> rep_r(n_run, Reporter(covidm_parameters));
-        for (unsigned int r = 0; r < n_run; ++r)
-            rand_r.emplace_back(rand_master());
-
-        // Run the simulation
-        #pragma omp parallel for if(n_threads > 1) schedule(dynamic)
-        for (unsigned int r = 0; r < n_run; ++r)
-        {
-            Parameters P = covidm_parameters;
-            P.FilterForRun(r);
-            rep_r[r] = RunSimulation(P, rand_r[r]);
-        }
 
         // Assemble results
         Rcpp::List dynamics;

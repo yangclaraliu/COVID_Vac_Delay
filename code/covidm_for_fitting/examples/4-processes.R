@@ -43,7 +43,7 @@ params = cm_parameters_SEI3R(
 # You can chain these together by setting the source of another process to one of the names of the subprocesses.
 
 # run the model + combine multisource processes
-run = cm_process_consolidate(cm_simulate(params))
+run = cm_simulate(params)
 
 # show results
 ggplot(run$dynamics[compartment %like% "test"]) +

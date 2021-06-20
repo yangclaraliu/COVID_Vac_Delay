@@ -22,20 +22,8 @@ double nbinom(unsigned int x, double mean, double size);
 // negative binomial log density with retrospective confirmation
 double nbinom_gammaconf(unsigned int x, double mean, double size, double days_ago, double conf_delay_mean, double conf_delay_shape);
 
-// normal log density
-double norm(double x, double mean, double sd);
-
-// skew normal log density
-double skewnorm(double x, double xi, double omega, double alpha);
-
-// beta density
-double dbeta(double x, double alpha, double beta);
-
 // construct a delay distribution following a gamma distribution with mean mu and shape parameter shape.
 std::vector<double> delay_gamma(double mu, double shape, double t_max, double t_step, double mult = 1.);
-
-// construct a delay distribution following a lognormal distribution with true mean mu and coefficient of variation cv.
-std::vector<double> delay_lnorm(double mu, double cv, double t_max, double t_step);
 
 // estimate the basic reproduction number
 double estimate_R0(Parameters& P, double t, unsigned int p, unsigned int iter);

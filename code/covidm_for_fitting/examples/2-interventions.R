@@ -1,7 +1,12 @@
 # 2-interventions.R
 
+.args <- if (interactive()) c(
+  "~/Dropbox/nCoV/covidm",
+  "example2.png"
+) else commandArgs(trailingOnly = TRUE)
+
 # covidm options
-cm_path = "~/Dropbox/nCoV/covidm/"; ### CHANGE THIS to reflect the path to covidm.
+cm_path = .args[1]; ### CHANGE THIS to reflect the path to covidm.
 cm_force_rebuild = F;
 cm_build_verbose = T;
 cm_version = 2;
@@ -80,6 +85,8 @@ params$deterministic = F
 run = cm_simulate(params, 1, 1515) # second parameter is number of runs w same parameters but different seed. third parameter is starting seed. 0 is default
 
 # show results
-ggplot(run$dynamics[compartment == "cases"]) +
+p <- ggplot(run$dynamics[compartment == "cases"]) +
     geom_line(aes(ymd("2020-03-01") + t, value, colour = group, group = group)) + 
     facet_wrap(~population)
+
+ggsave(tail(.args, 1), p, width = 6, height = 3)

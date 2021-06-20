@@ -32,6 +32,7 @@ const map<string,SourceID> processSourceMap = {
     {"S", srcS},
     {"E", srcE},
     {"Ev", srcEv},
+    {"Ev2", srcEv2},
     {"Ev_Ip", srcEvp},
     {"Ev_Ia", srcEva},
     {"Ev2_Ip", srcEv2p},
@@ -96,7 +97,7 @@ class ProcessList {
 public:
     vector<ProcessSpec> flows;
     // the size of user process containers to use
-    unsigned int state_count;
+    unsigned int state_count = 0;
     vector<string> state_names;
     
     // the sink ids (i.e. indices in the process containers)
@@ -109,7 +110,7 @@ public:
     vector<unsigned int> prevalence_states;
     vector<unsigned int> incidence_states;
     vector<unsigned int> outcidence_states;
-    unsigned int recording_count, inc_offset, out_offset;
+    unsigned int recording_count = 0, inc_offset = 0, out_offset = 0;
     
     void Update(vector<ProcessSpec>& ps);
     

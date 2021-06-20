@@ -11,3 +11,7 @@ model_v2/user_defined.cpp
 .Rapp.history
 .Rproj.user
 *.Rproj
+
+examples/*.rds
+examples/*.png
+examples/*.csv

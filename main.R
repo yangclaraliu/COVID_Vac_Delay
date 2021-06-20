@@ -11,8 +11,127 @@ source("code/util_data.R")
 source("code/util_functions.R")
 
 cn <- "Thailand"
-params <- cm_parameters_SEI3R(cn)
-res <- cm_simulate(params)
+params <- gen_country_basics(country = "Belarus",
+                             waning_nat = 52*7*3,
+                             R0_assumed  = 2.7,
+                             date_start = "2020-01-01",
+                             date_end = "2022-12-31",
+                             processes = burden_processes,
+                             deterministic = TRUE)
+
+params_1 <-   update_vac_char(params,
+                              ve_i   = ve$ve_i_o[1],  # infection blocking VE post 1 dose
+                              v2e_i  = ve$ve_i_o[2],  # infection blocking VE post 2 doses
+                              ve_d   = ve$ve_d[1],    # clinical fraction among breakthrough post 1 dose
+                              v2e_d  = ve$ve_d[2],    # clinical fraction among breakthrough post 2 doses
+                              wv = 1/120) # 1/ waning duration
+params_2 <- vac_policy(params_1,
+                       # these two parameters define the supply conditions
+                       milestone_date = c("2021-03-01", # start from 0
+                                          "2021-06-30", # 0.03
+                                          "2021-12-31", # all population; 0.2
+                                          "2022-12-31"), # 0.6
+                       milestone_cov = c(0,
+                                         0.03,
+                                         0.2,
+                                         0.5),
+                       # prioritisation, assume 60+  all prioritised
+                       priority = c(NA, NA, NA, NA,
+                                    2,  2,  2,  2,
+                                    2,  2,  2,  2,
+                                    1,  1,  1,  1),
+                       # maximum feasible uptakes
+                       cov_max = c(rep(0,4),
+                                   rep(0.7, 8),
+                                   rep(0.9, 4)),
+                       # the proportion of age groups at which we will compare
+                       # rolling out dose 2s or more dose 1s
+                       p_change = 0.7,
+                       supply_delay = 20 # unit = weeks
+                       
+)
+
+res <- cm_simulate(params_2$res[[1]])
+res$dynamics %>% filter(compartment == "severe_i") %>% mutate(tot = sum(value))
+
+params_2$daily_vac_scenarios[[3]] %>% 
+  arrange(date) %>% 
+  mutate_at(vars(starts_with("Y", ignore.case = F)),
+            cumsum) %>% 
+  pivot_longer(starts_with("Y", ignore.case = F)) %>% 
+  separate(name, into = c("ag", "dose")) %>% 
+  mutate(ag = parse_number(ag)) %>% 
+  ggplot(., aes(x = date, y = value, group = ag, color = ag)) +
+  geom_line() +
+  facet_wrap(~dose, ncol = 1)
+
+
+res$dynamics %>% 
+  filter(compartment %in% c("cases","death_o")) %>% 
+  ggplot(., aes(x = t, y = value, group = group)) +
+  geom_line() +
+  facet_wrap(~compartment, scales = "free") 
+
+
+
+res$dynamics %>% 
+  filter(compartment %in% c("S", "Sw", "Sv", "Sv2",
+                            "R", "Rv", "Rv2")) %>% 
+  mutate(broad = substr(compartment, 1, 1) %>% 
+           factor(., levels = c("S","R"))) %>% 
+  ggplot(., aes(x = t, 
+                y = value,
+                color = compartment,
+                group = compartment)) +
+  geom_line() +
+  facet_grid(broad~group)
+
+
+res$dynamics %>% 
+  filter(compartment %in% c("Sw", "Sv", "Sv2",
+                            "E", "Ev", "Ev2")) %>% 
+  # group_by(t, compartment) %>% summarise(value = sum(value)) %>% 
+  # mutate(compartment = factor(compartment, levels = c("Sv2", "Sv", "Sw"))) %>% 
+  ggplot(., aes(x = t, y = value, group = compartment, color = compartment)) +
+  geom_line() + facet_wrap(~group)
+  
+geom_bar(stat = "identity")
+
+res$dynamics %>% 
+  filter(compartment %in% c("S","Sw", "Sv", "Sv2",
+                            "Ip","Ia","Is",
+                            "E", "Ev", "Ev2",
+                            "R", "Rv","Rv2"
+                            )) %>%  
+  group_by(t, compartment) %>% summarise(value = sum(value)) %>% 
+  mutate(broad = substr(compartment, 1, 1),
+         broad = if_else(compartment %in% c("Sw", "Sv","Sv2"), 
+                         "V", 
+                         as.character(broad)),
+         broad = factor(broad,
+                        levels = c("S","V","E","I","R"))) %>% 
+  ggplot(., aes(x = t, 
+                y = value,
+                color = compartment,
+                group = compartment)) +
+  geom_bar(stat = "identity") +
+  facet_wrap(~broad, ncol = 1, scale = "free")
+
+
+
+
+
+res$dynamics %>% 
+  filter(group == "75+",
+         t == 1095)
+
+
+res$dynamics %>% 
+  ggplot(., aes(x = t, y = value, group = group)) +
+  geom_line() +
+  facet_wrap(~compartment, scales = "free") 
+
+res$dynamics$compartment %>% table
 
 
 # params <- gen_country_basics("Thailand") 
@@ -21,12 +140,7 @@ res <- cm_simulate(params)
 # 
 # 
 # 
-#   update_vac_char(., 
-#                   ve_i   = ve$ve_i_o[1],  # infection blocking VE post 1 dose
-#                   v2e_i  = ve$ve_i_o[2],  # infection blocking VE post 2 doses
-#                   ve_d   = ve$ve_d[1],    # clinical fraction among breakthrough post 1 dose
-#                   v2e_d  = ve$ve_d[2],    # clinical fraction among breakthrough post 2 doses
-#                   wv = 1/120
+
 #                     ) 
 # 
 # params <- vac_policy(para = params,

@@ -42,36 +42,36 @@ void ParamSet(vector<Matrix>& variable, Rcpp::RObject& value)
 
 void ParamSet(ProcessList& variable, Rcpp::RObject& value)
 {
-    
+
     // translate each r object into a process object
     // ids are not set until all process objects available
     // and are added to a ProcessList
     Rcpp::List pl = Rcpp::as<Rcpp::List>(value);
     vector<ProcessSpec> processes;
     processes.reserve(pl.size() + 1);
-    
+
     for (size_t i=0; i<pl.size(); i++) {
         Rcpp::List rprocessobj = Rcpp::as<Rcpp::List>(pl[i]);
         ProcessSpec process;
         process.source_name = Rcpp::as<string>(rprocessobj["source"]);
         process.type = Rcpp::as<string>(rprocessobj["type"]);
         process.names = Rcpp::as<vector<string>>(rprocessobj["names"]);
-        
+
         process.report = Rcpp::as<vector<string>>(rprocessobj["report"]);
-        
+
         Matrix m_prob, m_delays;
         Rcpp::RObject r_prob = Rcpp::as<Rcpp::RObject>(rprocessobj["prob"]);
         Rcpp::RObject r_delays = Rcpp::as<Rcpp::RObject>(rprocessobj["delays"]);
         ParamSet(m_prob, r_prob);
         ParamSet(m_delays, r_delays);
-        
+
         for (unsigned int group = 0; group < m_prob.NCol(); ++group)
         {
             process.prob.push_back(vector<double>(m_prob.NRow(), 0.));
             for (unsigned int outcome = 0; outcome < m_prob.NRow(); ++outcome)
                 process.prob[group][outcome] = m_prob(outcome, group);
         }
-        
+
         for (unsigned int outcome = 0; outcome < m_delays.NRow(); ++outcome)
         {
             process.delays.push_back(Discrete());
@@ -80,12 +80,12 @@ void ParamSet(ProcessList& variable, Rcpp::RObject& value)
                 uw[c] = m_delays(outcome, c);
             process.delays.back() = uw;
         }
-        
+
         processes.push_back(process);
-        
+
     }
-    
-    
+
+
     variable.Update(processes);
 
 }
@@ -225,10 +225,13 @@ void Parameters::FilterForRun(unsigned int r)
 
 
 // Helpers to set parameters
-#define ParamAssign(t, v)               if (list.containsElementNamed(#v)) P.v = Rcpp::as<t>(list[#v]);
-#define ParamMatrixAssign(v)            if (list.containsElementNamed(#v)) SetMatrix(P.v, Rcpp::as<Rcpp::NumericMatrix>(list[#v]));
-#define ParamPopAssign(t, v, i)         if (popi.containsElementNamed(#v)) P.pop[i].v = Rcpp::as<t>(popi[#v]);
-#define ParamPopMatrixAssign(v, i)      if (popi.containsElementNamed(#v)) SetMatrix(P.pop[i].v, Rcpp::as<Rcpp::NumericMatrix>(popi[#v]));
+#define ListPar(v)                      list.containsElementNamed(#v)
+#define PopiPar(v)                      popi.containsElementNamed(#v)
+#define MissingPar(v)                   { std::cerr << "No " << #v << " parameter available." << std::endl; }
+#define ParamAssign(t, v)               if (ListPar(v)) { P.v = Rcpp::as<t>(list[#v]); } else MissingPar(v)
+#define ParamMatrixAssign(v)            if (ListPar(v)) { SetMatrix(P.v, Rcpp::as<Rcpp::NumericMatrix>(list[#v])); } else MissingPar(v)
+#define ParamPopAssign(t, v, i)         if (PopiPar(v)) { P.pop[i].v = Rcpp::as<t>(popi[#v]); } else MissingPar(v)
+#define ParamPopMatrixAssign(v, i)      if (PopiPar(v)) { SetMatrix(P.pop[i].v, Rcpp::as<Rcpp::NumericMatrix>(popi[#v])); } else else MissingPar(v)
 
 void SetMatrix(Matrix& mat, const Rcpp::NumericMatrix& rhs)
 {
@@ -249,7 +252,7 @@ void SetParameters(Parameters& P, Rcpp::List list, Randomizer& Rand)
     ParamAssign(unsigned int, report_every);
     ParamAssign(bool, fast_multinomial);
     ParamAssign(bool, deterministic);
-    
+
     if (P.report_every != 1/P.time_step)
         throw("report_every must be the reciprocal of time_step.");
 
@@ -336,14 +339,14 @@ void SetParameters(Parameters& P, Rcpp::List list, Randomizer& Rand)
             P.pop[i].Recalculate();
         }
     }
-    
+
     // Read in processes
     if (list.containsElementNamed("processes"))
     {
         Rcpp::RObject r_processes = Rcpp::as<Rcpp::RObject>(list["processes"]);
         ParamSet(P.processes, r_processes);
     }
-    
+
     ParamMatrixAssign(travel);
 
     // Read in schedule (change set)
@@ -379,5 +382,5 @@ void SetParameters(Parameters& P, Rcpp::List list, Randomizer& Rand)
             P.changes.ch.push_back(Change(P, pops, runs, param_name, mode, times, values));
         }
     }
-    
+
 }

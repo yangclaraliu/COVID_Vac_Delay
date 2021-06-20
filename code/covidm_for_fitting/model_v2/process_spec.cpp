@@ -60,4 +60,3 @@ void ProcessList::Update(vector<ProcessSpec>& ps) {
     inc_offset = prevalence_states.size();
     out_offset = inc_offset + incidence_states.size();
 }
-

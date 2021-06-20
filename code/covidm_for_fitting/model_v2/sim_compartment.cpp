@@ -14,29 +14,26 @@ Population::Population(Parameters& P, unsigned int pindex)
 {
     // Set up built-in compartments
     N  = P.pop[p].size;
-
     S  = N;
+    E  = vector<Compartment>(S.size());
+    // breakthrough infections
+    Ev = vector<Compartment>(S.size());
+    Ev2 = vector<Compartment>(S.size());
+
+    Ip = vector<Compartment>(S.size());
+    Ia = vector<Compartment>(S.size());
+    Is = vector<Compartment>(S.size());
+    C  = vector<Compartment>(S.size());
+    R  = vector<double>(S.size(), 0.);
     // vaccinated (1 and 2 dose) & not R
     Sv = vector<double>(S.size(), 0.);
     Sv2 = vector<double>(S.size(), 0.);
     // 1dosed waned
     Sw = vector<double>(S.size(), 0.);
     // vaccinated & R (1 and 2 dose)
-    
-    E  = vector<Compartment>(S.size());
-    // breakthrough infections
-    Ev = vector<Compartment>(S.size());
-    Ev2 = vector<Compartment>(S.size());
-    
-    Ip = vector<Compartment>(S.size());
-    Ia = vector<Compartment>(S.size());
-    Is = vector<Compartment>(S.size());
-    C  = vector<Compartment>(S.size());
-    
-    R  = vector<double>(S.size(), 0.);
     Rv = vector<double>(S.size(), 0.);
     Rv2 = vector<double>(S.size(), 0.);
-    
+
     // Initial immunity
     for (unsigned int a = 0; a < S.size(); ++a) {
         double imm = 0;
@@ -51,7 +48,7 @@ Population::Population(Parameters& P, unsigned int pindex)
     );
     pci = vector<double>(pc.size(), 0.);
     pco = vector<double>(pc.size(), 0.);
-    
+
 }
 
 // Do seeding and calculate contagiousness
@@ -98,7 +95,7 @@ void Population::Tick(Parameters& P, Randomizer& Rand, double t, vector<double>&
     // Calculate force of infection in this compartment
     lambda.assign(infec.size(), 0.0);
 
-    // NB, this now does not include susceptibility term    
+    // NB, this now does not include susceptibility term
     for (unsigned int a = 0; a < lambda.size(); ++a)
         for (unsigned int b = 0; b < lambda.size(); ++b)
             lambda[a] += P.pop[p].cm(a,b) * infec[b];
@@ -171,7 +168,7 @@ void Population::Tick(Parameters& P, Randomizer& Rand, double t, vector<double>&
             rep(t, p, a, riIa) = Ia[a].Size();
             rep(t, p, a, riR) = R[a];
             rep(t, p, a, rilambda) = P.pop[p].u[a]*lambda[a];
-            
+
             rep(t, p, a, rilambdav) = P.pop[p].uv[a]*lambda[a];
             rep(t, p, a, riRv) = Rv[a];
             rep(t, p, a, riSv) = Sv[a];
@@ -181,34 +178,38 @@ void Population::Tick(Parameters& P, Randomizer& Rand, double t, vector<double>&
             rep(t, p, a, riRv2) = Rv2[a];
             rep(t, p, a, riSv2) = Sv2[a];
             rep(t, p, a, riEv2) = Ev2[a].Size();
-            
+
             rep(t, p, a, riSw) = Sw[a];
-            
+
             // User-specified processes
             for (size_t i=0;
                  i < P.processes.prevalence_states.size();
                  i++
             ) rep(t, p, a, rep.user_defined_offset + i) = pc[P.processes.prevalence_states[i]][a].Size();
- 
+
         }
 
         // 1. Built-in states
 
         // Vaccination and waning of natural immunity and vaccine protection
-        
+        // when figuring out distro of second doses, only giving to those
+        // having received 1st dose (and not subsequently infectious)
         double first_dose_pop = Sv[a]+Sw[a]+Rv[a]+Ev[a].Size();
+        // when giving first doses, only to population that hasn't already received
+        // first or second dose
+        double first_dose_eligible = N[a] - first_dose_pop - Sv2[a] - Rv2[a];
 
         // S -> Sv (by v); Sv -> Sv2 (by v2); R -> Rv (by v); Rv -> Rv2 (by v2)
         // first doses
-        double nS_Sv = min(S[a], num(P.pop[p].v[a] * P.pop[p].ev[a] * S[a] / N[a] * P.time_step));
-        double nR_Rv = min(R[a], num(P.pop[p].v[a] * P.pop[p].ev[a] * R[a] / N[a] * P.time_step));
-        
+        double nS_Sv = min(S[a], num(P.pop[p].v[a] * P.pop[p].ev[a] * S[a] / first_dose_eligible * P.time_step));
+        double nR_Rv = min(R[a], num(P.pop[p].v[a] * P.pop[p].ev[a] * R[a] / first_dose_eligible * P.time_step));
+
         double nSv_Sw  = binomial(Sv[a], 1.0 - exp(-P.pop[p].wv[a] * P.time_step));
         // need to do update here; doesn't change first_dose_pop
         // doesn't change probability of the "waned" individuals ending up in v2
         Sv[a] -= nSv_Sw;
         Sw[a] += nSv_Sw;
-        
+
         // second doses
         double nSv_Sv2 = min(Sv[a], num(P.pop[p].v2[a] * P.pop[p].ev2[a] * Sv[a] / first_dose_pop * P.time_step));
         double nSw_Sv2 = min(Sw[a], num(P.pop[p].v2[a] * P.pop[p].ev2[a] * Sw[a] / first_dose_pop * P.time_step));
@@ -218,7 +219,7 @@ void Population::Tick(Parameters& P, Randomizer& Rand, double t, vector<double>&
         Sv[a]  += nS_Sv - nSv_Sv2;
         Sv2[a] += nSv_Sv2 + nSw_Sv2;
         Sw[a]  += -nSw_Sv2;
-        
+
         // waning
         // Sv -> Sw (waning); R -> S (pure waning / defective immunity)
         R[a] -= nR_Rv;
@@ -226,7 +227,7 @@ void Population::Tick(Parameters& P, Randomizer& Rand, double t, vector<double>&
 
         R[a] -= nR_S;
         S[a] += nR_S;
-        
+
         // double nRv_RSv = binomial(Rv[a], 1.0 - exp(-(P.pop[p].wv[a] + P.pop[p].wn[a]) * P.time_step));
         // double nRv_R = binomial(nRv_RSv, P.pop[p].wn[a] + P.pop[p].wv[a] == 0 ? 0 : P.pop[p].wv[a] / (P.pop[p].wn[a] + P.pop[p].wv[a]));
         // double nRv_Sv = nRv_RSv - nRv_R;
@@ -239,13 +240,13 @@ void Population::Tick(Parameters& P, Randomizer& Rand, double t, vector<double>&
         S[a] -= nS_E;
         double nSw_E = binomial(Sw[a], 1.0 - exp(-P.pop[p].u[a]*lambda[a] * P.time_step));
         Sw[a] -= nSw_E;
-        
+
         E[a].Add(P, Rand, nS_E + nSw_E, P.pop[p].dE);
-        
+
         double nSv_Ev = binomial(Sv[a], 1.0 - exp(-P.pop[p].uv[a]*lambda[a] * P.time_step));
         Sv[a] -= nSv_Ev;
         Ev[a].Add(P, Rand, nSv_Ev, P.pop[p].dEv);
-        
+
         double nSv2_Ev2 = binomial(Sv2[a], 1.0 - exp(-P.pop[p].uv2[a]*lambda[a] * P.time_step));
         Sv2[a] -= nSv2_Ev2;
         Ev2[a].Add(P, Rand, nSv2_Ev2, P.pop[p].dEv2);
@@ -254,15 +255,15 @@ void Population::Tick(Parameters& P, Randomizer& Rand, double t, vector<double>&
         double nE_Ipa = E[a].Mature();
         double nE_Ip = binomial(nE_Ipa, P.pop[p].y[a]);
         double nE_Ia = nE_Ipa - nE_Ip;
-        
+
         double nEv_Ipa = Ev[a].Mature();
         double nEv_Ip = binomial(nEv_Ipa, P.pop[p].yv[a]);
         double nEv_Ia = nEv_Ipa - nEv_Ip;
-        
+
         double nEv2_Ipa = Ev2[a].Mature();
         double nEv2_Ip = binomial(nEv2_Ipa, P.pop[p].yv2[a]);
         double nEv2_Ia = nEv2_Ipa - nEv2_Ip;
-        
+
         Ip[a].Add(P, Rand, nE_Ip + nEv_Ip + nEv2_Ip, P.pop[p].dIp);
         Ia[a].Add(P, Rand, nE_Ia + nEv_Ia + nEv2_Ia, P.pop[p].dIa);
 
@@ -276,7 +277,7 @@ void Population::Tick(Parameters& P, Randomizer& Rand, double t, vector<double>&
         double n_reported = C[a].Mature();
 
         // N.B. assuming that infected vaccines do not become Rv
-        
+
         // Is -> R
         double nIs_R = Is[a].Mature();
         R[a] += nIs_R;
@@ -344,7 +345,7 @@ void Population::Tick(Parameters& P, Randomizer& Rand, double t, vector<double>&
             multinomial(n_entering, process.prob[a], nd_out, ni_out);
 
             // add to the relevant process compartments
-            
+
             // Seed and mature this process's compartments
             unsigned int c = 0;
             for (unsigned int compartment_id : process.sink_ids)
@@ -358,7 +359,7 @@ void Population::Tick(Parameters& P, Randomizer& Rand, double t, vector<double>&
                 ++c;
             }
         }
-        
+
         // mature all compartments not yet updated
         for (size_t i = 0; i < pco.size(); i++) if (pco[i] < 0) pco[i] = pc[i][a].Mature();
 
@@ -376,7 +377,7 @@ void Population::Tick(Parameters& P, Randomizer& Rand, double t, vector<double>&
             t, p, a,
             rep.user_defined_offset + P.processes.inc_offset + i
         ) += pci[P.processes.incidence_states[i]];
-        
+
         for (size_t i=0;
              i < P.processes.outcidence_states.size();
              i++
@@ -384,7 +385,7 @@ void Population::Tick(Parameters& P, Randomizer& Rand, double t, vector<double>&
             t, p, a,
             rep.user_defined_offset + P.processes.out_offset + i
         ) += pco[P.processes.outcidence_states[i]];
-        
+
     }
 
     // Births, deaths, aging
@@ -400,7 +401,7 @@ void Population::Tick(Parameters& P, Randomizer& Rand, double t, vector<double>&
         double DSv = binomial(Sv[a],        death_prob);
         double DSv2 = binomial(Sv2[a],        death_prob);
         double DSw = binomial(Sw[a],        death_prob);
-        
+
         double DR  = binomial(R [a],        death_prob);
         double DRv = binomial(Rv[a],        death_prob);
         double DRv2 = binomial(Rv2[a],        death_prob);
@@ -416,20 +417,20 @@ void Population::Tick(Parameters& P, Randomizer& Rand, double t, vector<double>&
         R[a]  -= DR;
         Rv[a] -= DRv;
         Rv2[a] -= DRv2;
-        
-        // NB - RemoveProb also takes care of removal, so no -= needed        
+
+        // NB - RemoveProb also takes care of removal, so no -= needed
         double DE  = E[a] .RemoveProb(P, Rand, death_prob);
         double DEv = Ev[a].RemoveProb(P, Rand, death_prob);
         double DEv2 = Ev2[a].RemoveProb(P, Rand, death_prob);
         double DIp = Ip[a].RemoveProb(P, Rand, death_prob);
         double DIa = Ia[a].RemoveProb(P, Rand, death_prob);
         double DIs = Is[a].RemoveProb(P, Rand, death_prob);
-        
 
-        N[a]  -= 
+
+        N[a]  -=
             DS + DSv + DSv2 + DSw +
             DE + DEv + DEv2 +
-            DIp + DIa + DIs + 
+            DIp + DIa + DIs +
             DR + DRv + DRv2;
 
         // Agings
@@ -458,7 +459,7 @@ void Population::Tick(Parameters& P, Randomizer& Rand, double t, vector<double>&
             Rv[a + 1] += ARv;
             Rv2[a]     -= ARv2;
             Rv2[a + 1] += ARv2;
-                        
+
             double AE  = E[a] .MoveProb(E [a + 1], P, Rand, age_prob);
             double AEv = Ev[a].MoveProb(Ev[a + 1], P, Rand, age_prob);
             double AEv2 = Ev2[a].MoveProb(Ev2[a + 1], P, Rand, age_prob);
@@ -542,7 +543,7 @@ bool Metapopulation::Tick(Parameters& P, Randomizer& Rand, double t, unsigned in
 
     // note -- 'infec' subscripted first by i, then by a
     // It's the effective number of infectious individuals who are CURRENTLY IN subpop i of age a.
-    infec.assign(pops.size(), vector<double>(n_ages, 0.0)); 
+    infec.assign(pops.size(), vector<double>(n_ages, 0.0));
     for (unsigned int i = 0; i < pops.size(); ++i)
         for (unsigned int j = 0; j < pops.size(); ++j)
             for (unsigned int a = 0; a < n_ages; ++a)
