@@ -8,7 +8,12 @@ gen_country_basics <- function(country,
   
   require(countrycode)
   
+  
   wb_tmp = countrycode(country, "country.name", "wb")
+  c_tmp = schedule_raw %>% filter(wb == wb_tmp) %>% 
+    filter(date >= date_start,
+           date <= date_end)
+  
   para = cm_parameters_SEI3R(dem_locations = country, 
                              date_start = date_start, 
                              date_end = date_end,
@@ -51,17 +56,17 @@ gen_country_basics <- function(country,
   
   para$processes = processes
   
-  # para$schedule[["mobility"]] = list(
-  #   parameter = "contact",
-  #   pops = numeric(),
-  #   mode = "assign",
-  #   values = split(c_tmp[,4:7],
-  #                  seq(nrow(c_tmp))) %>%
-  #     map(unlist) %>%
-  #     map(as.vector) %>%
-  #     unname,
-  #   times = 1:t_run)
-  
+  para$schedule[["mobility"]] = list(
+    parameter = "contact",
+    pops = numeric(),
+    mode = "assign",
+    values = split(c_tmp[,4:7],
+                   seq(nrow(c_tmp))) %>%
+      map(unlist) %>%
+      map(as.vector) %>%
+      unname,
+    times = 1:nrow(c_tmp))
+
   return(para)
 }
 
@@ -513,7 +518,9 @@ change_ve <- function(
   para = NULL,
   transition_start = "2021-03-15",
   transition_end = "2021-06-15",
-  ve_reduction = NULL
+  new_ve = 0.5,
+  new_severity = 1.5,
+  new_trans = 1.5
 ){
   require(lubridate)
   require(magrittr)
@@ -551,12 +558,17 @@ change_ve <- function(
   
   # assign these things
   n_para <- length(para$res)
+  
   for(i in 1:n_para){
     para$res[[i]]$schedule[["uv_change"]] <- list(
       parameter = "uv",
       pops = numeric(),
       mode = "assign",
-      values = tmp$value %>% map(rep, 16),
+      values = split(tmp[,3:18],
+                     seq(nrow(tmp))) %>%
+        map(unlist) %>%
+        map(as.vector) %>%
+        unname,
       times = tmp$t
     )
     
@@ -564,8 +576,12 @@ change_ve <- function(
       parameter = "uv2",
       pops = numeric(),
       mode = "assign",
-      values = tmp$value %>% map(rep, 16),
-      times = tmp$t
+      values = split(tmp2[,3:18],
+                     seq(nrow(tmp2))) %>%
+        map(unlist) %>%
+        map(as.vector) %>%
+        unname,
+      times = tmp2$t
     )
   }
   return(para)

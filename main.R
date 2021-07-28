@@ -7,10 +7,9 @@ cm_build_verbose <- T
 cm_version <- 2
 source(paste0(cm_path, "/R/covidm.R"))
 
-source("code/util_data.R")
 source("code/util_functions.R")
+source("code/0_LoadData.R")
 
-cn <- "Thailand"
 params <- gen_country_basics(country = "Belarus",
                              waning_nat = 52*7*3,
                              R0_assumed  = 2.7,
@@ -54,25 +53,11 @@ params_2 <- vac_policy(params_1,
 res <- cm_simulate(params_2$res[[1]])
 res$dynamics %>% filter(compartment == "severe_i") %>% mutate(tot = sum(value))
 
-params_2$daily_vac_scenarios[[3]] %>% 
-  arrange(date) %>% 
-  mutate_at(vars(starts_with("Y", ignore.case = F)),
-            cumsum) %>% 
-  pivot_longer(starts_with("Y", ignore.case = F)) %>% 
-  separate(name, into = c("ag", "dose")) %>% 
-  mutate(ag = parse_number(ag)) %>% 
-  ggplot(., aes(x = date, y = value, group = ag, color = ag)) +
-  geom_line() +
-  facet_wrap(~dose, ncol = 1)
-
-
 res$dynamics %>% 
   filter(compartment %in% c("cases","death_o")) %>% 
   ggplot(., aes(x = t, y = value, group = group)) +
   geom_line() +
   facet_wrap(~compartment, scales = "free") 
-
-
 
 res$dynamics %>% 
   filter(compartment %in% c("S", "Sw", "Sv", "Sv2",
@@ -85,7 +70,6 @@ res$dynamics %>%
                 group = compartment)) +
   geom_line() +
   facet_grid(broad~group)
-
 
 res$dynamics %>% 
   filter(compartment %in% c("Sw", "Sv", "Sv2",
@@ -116,22 +100,6 @@ res$dynamics %>%
                 group = compartment)) +
   geom_bar(stat = "identity") +
   facet_wrap(~broad, ncol = 1, scale = "free")
-
-
-
-
-
-res$dynamics %>% 
-  filter(group == "75+",
-         t == 1095)
-
-
-res$dynamics %>% 
-  ggplot(., aes(x = t, y = value, group = group)) +
-  geom_line() +
-  facet_wrap(~compartment, scales = "free") 
-
-res$dynamics$compartment %>% table
 
 
 # params <- gen_country_basics("Thailand") 
