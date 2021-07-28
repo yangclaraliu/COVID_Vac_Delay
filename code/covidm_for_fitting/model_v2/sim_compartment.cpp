@@ -18,6 +18,7 @@ Population::Population(Parameters& P, unsigned int pindex)
     E  = vector<Compartment>(S.size());
     // breakthrough infections
     Ev = vector<Compartment>(S.size());
+    Evw = vector<Compartment>(S.size());
     Ev2 = vector<Compartment>(S.size());
 
     Ip = vector<Compartment>(S.size());
@@ -180,6 +181,7 @@ void Population::Tick(Parameters& P, Randomizer& Rand, double t, vector<double>&
             rep(t, p, a, riEv2) = Ev2[a].Size();
 
             rep(t, p, a, riSw) = Sw[a];
+            rep(t, p, a, riEvw) = Evw[a].Size();
 
             // User-specified processes
             for (size_t i=0;
@@ -194,7 +196,7 @@ void Population::Tick(Parameters& P, Randomizer& Rand, double t, vector<double>&
         // Vaccination and waning of natural immunity and vaccine protection
         // when figuring out distro of second doses, only giving to those
         // having received 1st dose (and not subsequently infectious)
-        double first_dose_pop = Sv[a]+Sw[a]+Rv[a]+Ev[a].Size();
+        double first_dose_pop = Sv[a]+Sw[a]+Rv[a]+Ev[a].Size()+Evw[a].Size();
         // when giving first doses, only to population that hasn't already received
         // first or second dose
         double first_dose_eligible = N[a] - first_dose_pop - Sv2[a] - Rv2[a];
@@ -235,17 +237,18 @@ void Population::Tick(Parameters& P, Randomizer& Rand, double t, vector<double>&
         Rv[a]  += nR_Rv - nRv_Rv2;
         Rv2[a] += nRv_Rv2;
 
-        // S -> E; Sv -> Ev; Sv2 -> Ev2; Sw -> E
+        // S -> E; Sv -> Ev; Sv2 -> Ev2; Sw -> Evw
         double nS_E = binomial(S[a], 1.0 - exp(-P.pop[p].u[a]*lambda[a] * P.time_step));
         S[a] -= nS_E;
-        double nSw_E = binomial(Sw[a], 1.0 - exp(-P.pop[p].u[a]*lambda[a] * P.time_step));
-        Sw[a] -= nSw_E;
-
-        E[a].Add(P, Rand, nS_E + nSw_E, P.pop[p].dE);
-
+        E[a].Add(P, Rand, nS_E, P.pop[p].dE);
+        
         double nSv_Ev = binomial(Sv[a], 1.0 - exp(-P.pop[p].uv[a]*lambda[a] * P.time_step));
         Sv[a] -= nSv_Ev;
         Ev[a].Add(P, Rand, nSv_Ev, P.pop[p].dEv);
+        
+        double nSw_Evw = binomial(Sw[a], 1.0 - exp(-P.pop[p].uvw[a]*lambda[a] * P.time_step));
+        Sw[a] -= nSw_Evw;
+        Evw[a].Add(P, Rand, nSw_Evw, P.pop[p].dEvw);
 
         double nSv2_Ev2 = binomial(Sv2[a], 1.0 - exp(-P.pop[p].uv2[a]*lambda[a] * P.time_step));
         Sv2[a] -= nSv2_Ev2;
@@ -260,12 +263,16 @@ void Population::Tick(Parameters& P, Randomizer& Rand, double t, vector<double>&
         double nEv_Ip = binomial(nEv_Ipa, P.pop[p].yv[a]);
         double nEv_Ia = nEv_Ipa - nEv_Ip;
 
+        double nEvw_Ipa = Evw[a].Mature();
+        double nEvw_Ip = binomial(nEvw_Ipa, P.pop[p].yvw[a]);
+        double nEvw_Ia = nEvw_Ipa - nEvw_Ip;
+        
         double nEv2_Ipa = Ev2[a].Mature();
         double nEv2_Ip = binomial(nEv2_Ipa, P.pop[p].yv2[a]);
         double nEv2_Ia = nEv2_Ipa - nEv2_Ip;
 
-        Ip[a].Add(P, Rand, nE_Ip + nEv_Ip + nEv2_Ip, P.pop[p].dIp);
-        Ia[a].Add(P, Rand, nE_Ia + nEv_Ia + nEv2_Ia, P.pop[p].dIa);
+        Ip[a].Add(P, Rand, nE_Ip + nEv_Ip + nEvw_Ip + nEv2_Ip, P.pop[p].dIp);
+        Ia[a].Add(P, Rand, nE_Ia + nEv_Ia + nEvw_Ia + nEv2_Ia, P.pop[p].dIa);
 
         // Ip -> Is -- also, true case onsets
         double nIp_Is = Ip[a].Mature();
@@ -307,18 +314,24 @@ void Population::Tick(Parameters& P, Randomizer& Rand, double t, vector<double>&
                     n_entering = nE_Ipa; break;
                 case srcEv:
                     n_entering = nEv_Ipa; break;
+                case srcEvw:
+                    n_entering = nEvw_Ipa; break;
                 case srcEv2:
                     n_entering = nEv2_Ipa; break;
                 case srcEp:
                     n_entering = nE_Ip; break;
                 case srcEvp:
                     n_entering = nEv_Ip; break;
+                case srcEvwp:
+                    n_entering = nEvw_Ip; break;
                 case srcEv2p:
                     n_entering = nEv2_Ip; break;
                 case srcEa:
                     n_entering = nE_Ia; break;
                 case srcEva:
                     n_entering = nEv_Ia; break;
+                case srcEvwa:
+                    n_entering = nEvw_Ia; break;
                 case srcEv2a:
                     n_entering = nEv2_Ia; break;
                 case srcIp:
@@ -397,12 +410,12 @@ void Population::Tick(Parameters& P, Randomizer& Rand, double t, vector<double>&
 
         // Deaths
         double death_prob = 1.0 - exp(-P.pop[p].D[a] * P.time_step);
-        double DS  = binomial(S [a],        death_prob);
+        double DS  = binomial(S[a],        death_prob);
         double DSv = binomial(Sv[a],        death_prob);
         double DSv2 = binomial(Sv2[a],        death_prob);
         double DSw = binomial(Sw[a],        death_prob);
 
-        double DR  = binomial(R [a],        death_prob);
+        double DR  = binomial(R[a],        death_prob);
         double DRv = binomial(Rv[a],        death_prob);
         double DRv2 = binomial(Rv2[a],        death_prob);
 
@@ -421,6 +434,7 @@ void Population::Tick(Parameters& P, Randomizer& Rand, double t, vector<double>&
         // NB - RemoveProb also takes care of removal, so no -= needed
         double DE  = E[a] .RemoveProb(P, Rand, death_prob);
         double DEv = Ev[a].RemoveProb(P, Rand, death_prob);
+        double DEvw = Evw[a].RemoveProb(P, Rand, death_prob);
         double DEv2 = Ev2[a].RemoveProb(P, Rand, death_prob);
         double DIp = Ip[a].RemoveProb(P, Rand, death_prob);
         double DIa = Ia[a].RemoveProb(P, Rand, death_prob);
@@ -429,7 +443,7 @@ void Population::Tick(Parameters& P, Randomizer& Rand, double t, vector<double>&
 
         N[a]  -=
             DS + DSv + DSv2 + DSw +
-            DE + DEv + DEv2 +
+            DE + DEv + DEv2 + DEvw +
             DIp + DIa + DIs +
             DR + DRv + DRv2;
 
@@ -437,11 +451,11 @@ void Population::Tick(Parameters& P, Randomizer& Rand, double t, vector<double>&
         if (a != lambda.size() - 1)
         {
             double age_prob = 1.0 - exp(-P.pop[p].A[a] * P.time_step);
-            double AS  = binomial(S [a],        age_prob);
+            double AS  = binomial(S[a],        age_prob);
             double ASv = binomial(Sv[a],        age_prob);
             double ASv2 = binomial(Sv2[a],        age_prob);
             double ASw = binomial(Sw[a],        age_prob);
-            double AR  = binomial(R [a],        age_prob);
+            double AR  = binomial(R[a],        age_prob);
             double ARv = binomial(Rv[a],        age_prob);
             double ARv2 = binomial(Rv2[a],        age_prob);
 
@@ -462,13 +476,14 @@ void Population::Tick(Parameters& P, Randomizer& Rand, double t, vector<double>&
 
             double AE  = E[a] .MoveProb(E [a + 1], P, Rand, age_prob);
             double AEv = Ev[a].MoveProb(Ev[a + 1], P, Rand, age_prob);
+            double AEvw = Evw[a].MoveProb(Evw[a + 1], P, Rand, age_prob);
             double AEv2 = Ev2[a].MoveProb(Ev2[a + 1], P, Rand, age_prob);
             double AIp = Ip[a].MoveProb(Ip[a + 1], P, Rand, age_prob);
             double AIa = Ia[a].MoveProb(Ia[a + 1], P, Rand, age_prob);
             double AIs = Is[a].MoveProb(Is[a + 1], P, Rand, age_prob);
 
-            N[a]      -= AS + ASv + ASv2 + ASw + AE + AEv + AEv2 + AIp + AIa + AIs + AR + ARv + ARv2;
-            N[a + 1]  += AS + ASv + ASv2 + ASw + AE + AEv + AEv2 + AIp + AIa + AIs + AR + ARv + ARv2;
+            N[a]      -= AS + ASv + ASv2 + ASw + AE + AEv + AEvw + AEv2 + AIp + AIa + AIs + AR + ARv + ARv2;
+            N[a + 1]  += AS + ASv + ASv2 + ASw + AE + AEv + AEvw + AEv2 + AIp + AIa + AIs + AR + ARv + ARv2;
         }
 
         if (a == 0)
@@ -505,6 +520,7 @@ void Population::DebugPrint() const
     vecprint(Rv2, "Rv2");
     comprint(E, "E");
     comprint(Ev, "Ev");
+    comprint(Evw, "Evw");
     comprint(Ev2, "Ev2");
     comprint(Ip, "Ip");
     comprint(Ia, "Ia");

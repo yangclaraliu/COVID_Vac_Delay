@@ -10,6 +10,10 @@ source(paste0(cm_path, "/R/covidm.R"))
 source("code/util_functions.R")
 source("code/0_LoadData.R")
 
+
+params <- cm_parameters_SEI3R("Thailand")
+cm_simulate()
+
 params <- gen_country_basics(country = "Belarus",
                              waning_nat = 52*7*3,
                              R0_assumed  = 2.7,
@@ -24,6 +28,7 @@ params_1 <-   update_vac_char(params,
                               ve_d   = ve$ve_d[1],    # clinical fraction among breakthrough post 1 dose
                               v2e_d  = ve$ve_d[2],    # clinical fraction among breakthrough post 2 doses
                               wv = 1/120) # 1/ waning duration
+
 params_2 <- vac_policy(params_1,
                        # these two parameters define the supply conditions
                        milestone_date = c("2021-03-01", # start from 0

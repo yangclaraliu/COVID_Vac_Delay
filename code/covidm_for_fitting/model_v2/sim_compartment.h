@@ -37,7 +37,7 @@ public:
     vector<double> Sv, Rv;                      // Susceptible and vaccinated, recovered and vaccinated
     vector<double> Sv2, Rv2;                    // 2-dose: Susceptible and vaccinated, recovered and vaccinated
     vector<double> Sw;                          // waned first dose individuals
-    vector<Compartment> E, Ev, Ev2, Ip, Ia, Is, C;   // Exposed (Exposed-and-vaccinated, & 2dosed), presymptomatic, asymptomatic, symptomatic, cases (reported)
+    vector<Compartment> E, Ev, Evw, Ev2, Ip, Ia, Is, C;   // Exposed (Exposed-and-vaccinated, & 2dosed), presymptomatic, asymptomatic, symptomatic, cases (reported)
     unsigned int seed_row;                      // Which seed event is next
     unsigned int p;                             // Which population this is
 

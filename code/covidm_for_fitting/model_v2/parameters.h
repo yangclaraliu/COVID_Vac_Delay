@@ -47,6 +47,7 @@ public:
 
     Discrete dE;
     Discrete dEv;
+    Discrete dEvw;
     Discrete dEv2;
     Discrete dIp;       // TODO: any need for these to be age-specific?
     Discrete dIa;
@@ -61,12 +62,14 @@ public:
     vector<double> contact_lowerto;
     vector<double> u;
     vector<double> uv; // susceptibility in vaccinees
+    vector<double> uvw; // susceptibility in vaccinees after 1st dose waned
     vector<double> uv2; // susceptibility in second dose vaccinees
     vector<double> fIp;
     vector<double> fIa;
     vector<double> fIs;
     vector<double> y;
     vector<double> yv; // symptomatic rate in vaccinees
+    vector<double> yvw; // symptomatic rate in vaccinees after first dose waned
     vector<double> yv2; // symptomatic rate in vaccinees
     vector<double> omega;
     vector<double> rho;

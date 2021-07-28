@@ -25,7 +25,7 @@ enum ReportIndex
     rilambda,
     riSv, riEv, riRv, rilambdav,
     riSv2, riEv2, riRv2, rilambdav2,
-    riSw
+    riSw, riEvw
 };
 
 const vector<string> ref_col_names = {
@@ -34,7 +34,7 @@ const vector<string> ref_col_names = {
     "foi",
     "Sv", "Ev", "Rv", "foiv",
     "Sv2", "Ev2", "Rv2", "foiv2",
-    "Sw"
+    "Sw", "Evw"
 };
 
 // For reporting results

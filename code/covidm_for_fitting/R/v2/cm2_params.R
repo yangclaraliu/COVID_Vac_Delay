@@ -95,10 +95,13 @@ population_requirements <- lapply(list(
 
 population_optionals <- lapply(list(
     "dEv" = "some_positive(dEv)",
+    "dEvw" = "some_positive(dEvw)",
     "dEv2" = "some_positive(dEv2)",
     "uv" = "non_negative(uv) & same_length(uv, size)",
+    "uvw" = "non_negative(uvw) & same_length(uvw, size)",
     "uv2" = "non_negative(uv2) & same_length(uv2, size)",
     "yv" = "non_negative(yv) & same_length(yv, size)",
+    "yvw" = "non_negative(yvw) & same_length(yvw, size)",
     "yv2" = "non_negative(yv2) & same_length(yv2, size)",
     "v2" =  "non_negative(v2) & same_length(v2, size)",
     "ev2" = "non_negative(ev2) & same_length(ev2, size)"
@@ -106,10 +109,13 @@ population_optionals <- lapply(list(
 
 optional_substitutes <- c(
     "dEv" = "dE",
+    "dEvw" = "dE",
     "dEv2" = "dE",
     "uv" = "u",
+    "uvw" = "u",
     "uv2" = "u",
     "yv" = "y",
+    "yvw" = "y",
     "yv2" = "y",
     "v2" = "v",
     "ev2" = "ev"
