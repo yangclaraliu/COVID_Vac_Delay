@@ -92,6 +92,92 @@ update_vac_char <- function(para,
   return(para)
 }
 
+#### generate processes, from SA2UK ####
+cm_multinom_process <- function(
+  src, outcomes, delays,
+  report = ""
+) {
+  if ("null" %in% names(outcomes)) {
+    if (length(report) != length(outcomes)) report <- rep(report, length(outcomes))
+    report[which(names(outcomes)=="null")] <- ""
+    if (!("null" %in% names(delays))) {
+      delays$null <- c(1, rep(0, length(delays[[1]])-1))
+    }
+  } else if (!all(rowSums(outcomes)==1)) {
+    report <- c(rep(report, length(outcomes)), "")
+    outcomes$null <- 1-rowSums(outcomes)
+    delays$null <- c(1, rep(0, length(delays[[1]])-1))
+  }
+  nrow <- length(outcomes)
+  list(
+    source = src, type="multinomial", names=names(outcomes), report = report,
+    prob = t(as.matrix(outcomes)), delays = t(as.matrix(delays))
+  )
+}
+
+change_VOC <- function(
+  para = NULL,
+  date_swtich = "2021-03-15",
+  rc_severity = 1.5, # relative change in ihr and ifr
+  rc_transmissibility = 1.5, # relative change in transmissibility via 
+  # u, uv and uv2
+  rc_ve = 0.4 # relative in ve against infection
+){
+
+  if(rc_severity != 1){
+    burden_processes_new <- 
+    list(cm_multinom_process("E",       data.frame(death_voc = P.death*rc_severity),                   delays = data.frame(death_voc = delay_2death), report = "o"),
+         cm_multinom_process("Ev",      data.frame(death_voc = P.death*(1-ve$ve_mort[1])*rc_severity), delays = data.frame(death_voc = delay_2death), report = "o"),
+         cm_multinom_process("Ev2",     data.frame(death_voc = P.death*(1-ve$ve_mort[2])*rc_severity), delays = data.frame(death_voc = delay_2death), report = "o"),
+           
+         cm_multinom_process("E",       data.frame(to_hosp_voc = P.hosp*rc_severity),                  delays = data.frame(to_hosp_voc = delay_2severe)),
+         cm_multinom_process("Ev",      data.frame(to_hosp_voc = P.hosp*(1-ve$ve_h[1])*rc_severity),   delays = data.frame(to_hosp_voc = delay_2severe)),
+         cm_multinom_process("Ev2",     data.frame(to_hosp_voc = P.hosp*(1-ve$ve_h[2])*rc_severity),   delays = data.frame(to_hosp_voc = delay_2severe)),
+           
+         cm_multinom_process("to_hosp_voc", data.frame(hosp_voc = rep(1,16)),                          delays = data.frame(hosp_voc = delay_2hosp),   report = "ip"))
+    
+    burden_updated <- c(burden_processes, burden_processes_new)
+    para$processes <- burden_updated
+  }
+  
+  # make changes RE: transmissibility and ve
+  if(!(rc_transmissibility == 1 & rc_ve == 1)){
+    data.table(u   =  para$pop[[1]]$u,
+               uv  =  para$pop[[1]]$uv,
+               uv2 =  para$pop[[1]]$uv2) %>% 
+      mutate(ve_i  =  1 - uv/u,
+             ve_i2 =  1 - uv2/u) -> u_table
+    
+    
+    # change transmissibility
+    if(rc_transmissibility != 1){
+      u_table_voc <- 
+      u_table %>% mutate_at(vars(starts_with("u")), function(x) x*rc_transmissibility)
+    }
+    
+    # change in infection prevention ve
+    if(rc_ve != 1){
+      u_table_voc <- 
+        u_table_voc %>% 
+        mutate_at(vars(starts_with("ve")), function(x) x*rc_ve) %>% 
+        mutate(uv = u*(1-ve_i),
+               uv2 = u*(1-ve_i2))
+    }
+    
+    for(p in c("u","uv","uv2")){
+      
+      para$schedule[[paste0("change_", p)]] <-  list(
+        parameter = p,
+        pops = numeric(),
+        mode = "assign",
+        values = list(u_table %>% pull(p), u_table_voc %>% pull(p)),
+        times = c(para$date0, date_swtich)
+      )
+    }
+  }
+  return(para)
+}
+
 vac_policy <- function(para,
                        # these two parameters define the supply conditions
                        milestone_date = c("2021-03-01", # start from 0
@@ -513,78 +599,6 @@ vac_policy <- function(para,
               daily_vac_scenarios = daily_vac_scenarios))
   }
 
-change_ve <- function(
-  para = NULL,
-  transition_start = "2021-03-15",
-  transition_end = "2021-06-15",
-  new_ve = 0.5,
-  new_severity = 1.5,
-  new_trans = 1.5
-){
-  require(lubridate)
-  require(magrittr)
-  require(tidyverse)
-  
-  n_age <- para$param$pop[[1]]$n_groups
-  tmp_start <- para$res[[1]]$date0
-  tmp_end <- ymd(tmp_start) + para$res[[1]]$time1
-  
-  # create time series for uv
-  para$param$pop[[1]]$uv -> uv_old
-  1 - para$param$pop[[1]]$uv/para$param$pop[[1]]$u -> tmp_ve
-  (1 - tmp_ve*ve_reduction)*para$param$pop[[1]]$u -> uv_new
-  
-  data.table(date = seq(ymd(tmp_start), ymd(tmp_end), 1),
-             t = 0:para$res[[1]]$time1) %>%
-    .[,(paste0("uv_Y",1:16)) := as.numeric(NA)] %>% 
-    .[date >= tmp_start & date <= ymd(transition_start),c(paste0("uv_Y",1:16)) := as.list(uv_old)] %>% 
-    .[date >= ymd(transition_end),c(paste0("uv_Y",1:16)) := as.list(uv_new)] %>% 
-    mutate_at(vars(starts_with("uv_Y", ignore.case = T)), 
-              imputeTS::na_interpolation, option = "spline") -> tmp
-
-  # create time series for uv2
-  para$param$pop[[1]]$uv2 -> uv_old
-  1 - para$param$pop[[1]]$uv2/para$param$pop[[1]]$u -> tmp_ve
-  (1 - tmp_ve*ve_reduction)*para$param$pop[[1]]$u -> uv_new
-  
-  data.table(date = seq(ymd(tmp_start), ymd(tmp_end), 1),
-             t = 0:para$res[[1]]$time1) %>%
-    .[,(paste0("uv_Y",1:16)) := as.numeric(NA)] %>% 
-    .[date >= tmp_start & date <= ymd(transition_start),c(paste0("uv_Y",1:16)) := as.list(uv_old)] %>% 
-    .[date >= ymd(transition_end),c(paste0("uv_Y",1:16)) := as.list(uv_new)] %>% 
-    mutate_at(vars(starts_with("uv_Y", ignore.case = T)), 
-              imputeTS::na_interpolation, option = "spline") -> tmp2
-  
-  # assign these things
-  n_para <- length(para$res)
-  
-  for(i in 1:n_para){
-    para$res[[i]]$schedule[["uv_change"]] <- list(
-      parameter = "uv",
-      pops = numeric(),
-      mode = "assign",
-      values = split(tmp[,3:18],
-                     seq(nrow(tmp))) %>%
-        map(unlist) %>%
-        map(as.vector) %>%
-        unname,
-      times = tmp$t
-    )
-    
-    para$res[[i]]$schedule[["uv2_change"]] <- list(
-      parameter = "uv2",
-      pops = numeric(),
-      mode = "assign",
-      values = split(tmp2[,3:18],
-                     seq(nrow(tmp2))) %>%
-        map(unlist) %>%
-        map(as.vector) %>%
-        unname,
-      times = tmp2$t
-    )
-  }
-  return(para)
-}
 
 ##### expand VE estimates to meet the needs of the model ####
 exp_ve <- function(ve_d_o,  # disease blocking VE observed
@@ -594,6 +608,7 @@ exp_ve <- function(ve_d_o,  # disease blocking VE observed
   ve_d <- (ve_d_o - ve_i_o)/(1 - ve_i_o)
   return(ve_d)
 }
+
 
 
 

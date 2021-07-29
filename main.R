@@ -51,9 +51,12 @@ params_2 <- vac_policy(params_1,
                        
 )
 
-res <- cm_simulate(params_2$res[[1]])
+res <- cm_simulate(params_1)
 res$dynamics %>% 
-  filter(compartment %in% c("foi", "foiv")) %>% 
+  filter(compartment %in% c("hosp_i", "hosp_p","hosp_o")) %>%
+  pivot_wider(names_from = compartment, values_from = value) %>% 
+  ggplot(., aes(x = hosp_i, y = hosp_o)) +
+  geom_point()
   write_rds(., "data/intermediate/reduced_foi.rds")
 
 res$dynamics %>% 
@@ -63,7 +66,6 @@ res$dynamics %>%
 
 reduced <- read_rds("data/intermediate/reduced_foi.rds")
 baseline <- read_rds("data/intermediate/baseline_foi.rds")
-
 
 reduced %>% rename(reduced = value) %>% 
   left_join(baseline %>% rename(baseline = value),

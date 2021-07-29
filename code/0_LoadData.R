@@ -234,85 +234,23 @@ probabilities <- probabilities[, lapply(.SD, mean), by = age_group, .SDcols = 2:
 P.critical <- probabilities[, ihr * picu]
 P.severe <- probabilities[, ihr * (1 - picu)]
 P.death <- probabilities[, ifr]
+P.hosp <- P.critical + P.severe
+
+delay_2death <- cm_delay_gamma(26, 5, 60, 0.25)$p
+delay_2severe <- cm_delay_gamma(8.5, 5, 60, 0.25)$p
+delay_2hosp <- cm_delay_gamma(14.6, 5, 60, 0.25)$p
 
 burden_processes <- list(
-  # Deaths
-  list(
-    source = "E", type = "multinomial", names = c("death", "null"), report = c("o", ""),
-    prob = matrix(c(P.death, 
-                    1 - P.death), 
-                  nrow = 2, 
-                  ncol = 16, 
-                  byrow = T),
-    delays = matrix(c(cm_delay_gamma(26, 5, 60, 0.25)$p, 
-                      cm_delay_skip(60, 0.25)$p), nrow = 2, byrow = T)
-  ),
-
-  list(
-    source = "Ev", type = "multinomial", names = c("death", "null"), report = c("o", ""),
-    prob = matrix(c(P.death*(1-ve$ve_mort[1]),
-                    1 - P.death*(1-ve$ve_mort[1])),
-                  nrow = 2,
-                  ncol = 16,
-                  byrow = T),
-    delays = matrix(c(cm_delay_gamma(26, 5, 60, 0.25)$p,
-                      cm_delay_skip(60, 0.25)$p), nrow = 2, byrow = T)
-  ),
-
-  list(
-    source = "Ev2", type = "multinomial", names = c("death", "null"), report = c("o", ""),
-    prob = matrix(c(P.death*(1-ve$ve_mort[2]),
-                    1 - P.death*(1-ve$ve_mort[2])),
-                  nrow = 2,
-                  ncol = 16,
-                  byrow = T),
-    delays = matrix(c(cm_delay_gamma(26, 5, 60, 0.25)$p,
-                      cm_delay_skip(60, 0.25)$p), nrow = 2, byrow = T)
-  ),
-
-  list(source = "E", type = "multinomial", names = c("to_severe", "null"),
-    report = c("", ""),
-    prob = matrix(c((P.critical + P.severe), 
-                    1 - (P.critical + P.severe)),
-                  nrow = 2, 
-                  ncol = 16, byrow = T),
-    delays = matrix(c(cm_delay_gamma(8.5, 5, 60, 0.25)$p,
-                      cm_delay_skip(60, 0.25)$p),
-                    nrow = 2,
-                    byrow = T)
-  ),
-  list(source = "Ev", type = "multinomial", names = c("to_severe", "null"),
-       report = c("", ""),
-       prob = matrix(c((P.critical + P.severe)*(1 - ve$ve_h[1]), 
-                       1 - (P.critical + P.severe)*(1 - ve$ve_h[1])),
-                       nrow = 2, 
-                       ncol = 16, byrow = T),
-       delays = matrix(c(cm_delay_gamma(8.5, 5, 60, 0.25)$p,
-                         cm_delay_skip(60, 0.25)$p),
-                       nrow = 2,
-                       byrow = T)
-  ),
+  cm_multinom_process("E",       data.frame(death = P.death),                   delays = data.frame(death = delay_2death), report = "o"),
+  cm_multinom_process("Ev",      data.frame(death = P.death*(1-ve$ve_mort[1])), delays = data.frame(death = delay_2death), report = "o"),
+  cm_multinom_process("Ev2",     data.frame(death = P.death*(1-ve$ve_mort[2])), delays = data.frame(death = delay_2death), report = "o"),
   
-  list(source = "Ev2", type = "multinomial", names = c("to_severe", "null"),
-       report = c("", ""),
-       prob = matrix(c((P.critical + P.severe)*(1 - ve$ve_h[2]), 
-                       1 - (P.critical + P.severe)*(1 - ve$ve_h[2])),
-                       nrow = 2, 
-                       ncol = 16, byrow = T),
-       delays = matrix(c(cm_delay_gamma(8.5, 5, 60, 0.25)$p,
-                         cm_delay_skip(60, 0.25)$p),
-                       nrow = 2,
-                       byrow = T)
-  ),
+
+  cm_multinom_process("E",       data.frame(to_hosp = P.hosp),                  delays = data.frame(to_hosp = delay_2severe)),
+  cm_multinom_process("Ev",      data.frame(to_hosp = P.hosp*(1-ve$ve_h[1])),   delays = data.frame(to_hosp = delay_2severe)),
+  cm_multinom_process("Ev2",     data.frame(to_hosp = P.hosp*(1-ve$ve_h[2])),   delays = data.frame(to_hosp = delay_2severe)),
   
-  list(
-    source = "to_severe",
-    type = "multinomial",
-    names = "severe",
-    report = "pi",
-    prob = matrix(1, nrow = 1, ncol = 16, byrow = T),
-    delays = matrix(cm_delay_gamma(14.6, 5, 60, 0.25)$p, nrow = 1, byrow = T)
-  )
+  cm_multinom_process("to_hosp", data.frame(hosp = rep(1,16)),                  delays = data.frame(hosp = delay_2hosp),   report = "ipo")
 )
 
 #### impute contact ####
