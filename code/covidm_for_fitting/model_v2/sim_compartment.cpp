@@ -257,15 +257,25 @@ void Population::Tick(Parameters& P, Randomizer& Rand, double t, vector<double>&
         double nE_Ia = nE_Ipa - nE_Ip;
 
         double nEv_Ipa = Ev[a].Mature();
-        double nEv_Ip = binomial(nEv_Ipa, P.pop[p].yv[a]);
-        double nEv_Ia = nEv_Ipa - nEv_Ip;
+        double nEv_Ip = binomial(nEv_Ipa*0.62, P.pop[p].yv[a]);
+        double nEv_Ia = nEv_Ipa*0.62 - nEv_Ip;
+        double nEv_Rv  = nEv_Ipa*0.38;
+        
+        // double nEv_Ip = binomial(nEv_Ipa, P.pop[p].yv[a]);
+        // double nEv_Ia = nEv_Ipa - nEv_Ip;
 
         double nEv2_Ipa = Ev2[a].Mature();
-        double nEv2_Ip = binomial(nEv2_Ipa, P.pop[p].yv2[a]);
-        double nEv2_Ia = nEv2_Ipa - nEv2_Ip;
+        double nEv2_Ip = binomial(nEv2_Ipa*0.5, P.pop[p].yv2[a]);
+        double nEv2_Ia = nEv2_Ipa*0.5 - nEv2_Ip;
+        double nEv2_Rv2  = nEv2_Ipa*0.5;
+        
+        // double nEv2_Ip = binomial(nEv2_Ipa, P.pop[p].yv2[a]);
+        // double nEv2_Ia = nEv2_Ipa - nEv2_Ip;
 
         Ip[a].Add(P, Rand, nE_Ip + nEv_Ip + nEv2_Ip, P.pop[p].dIp);
         Ia[a].Add(P, Rand, nE_Ia + nEv_Ia + nEv2_Ia, P.pop[p].dIa);
+        Rv[a]  += nEv_Rv;
+        Rv2[a]  += nEv2_Rv2;
 
         // Ip -> Is -- also, true case onsets
         double nIp_Is = Ip[a].Mature();

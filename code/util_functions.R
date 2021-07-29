@@ -8,7 +8,6 @@ gen_country_basics <- function(country,
   
   require(countrycode)
   
-  
   wb_tmp = countrycode(country, "country.name", "wb")
   c_tmp = schedule_raw %>% filter(wb == wb_tmp) %>% 
     filter(date >= date_start,

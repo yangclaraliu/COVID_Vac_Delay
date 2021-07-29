@@ -10,9 +10,9 @@ source(paste0(cm_path, "/R/covidm.R"))
 source("code/util_functions.R")
 source("code/0_LoadData.R")
 
-params <- gen_country_basics(country = "Belarus",
-                             waning_nat = 52*7*3,
-                             R0_assumed  = 2.7,
+params <- gen_country_basics(country = "Belgium",
+                             waning_nat = 52*7,
+                             R0_assumed  = 2.5,
                              date_start = "2020-01-01",
                              date_end = "2022-12-31",
                              processes = burden_processes,
@@ -24,6 +24,7 @@ params_1 <-   update_vac_char(params,
                               ve_d   = ve$ve_d[1],    # clinical fraction among breakthrough post 1 dose
                               v2e_d  = ve$ve_d[2],    # clinical fraction among breakthrough post 2 doses
                               wv = 1/120) # 1/ waning duration
+
 params_2 <- vac_policy(params_1,
                        # these two parameters define the supply conditions
                        milestone_date = c("2021-03-01", # start from 0
@@ -51,55 +52,79 @@ params_2 <- vac_policy(params_1,
 )
 
 res <- cm_simulate(params_2$res[[1]])
-res$dynamics %>% filter(compartment == "severe_i") %>% mutate(tot = sum(value))
+res$dynamics %>% 
+  filter(compartment %in% c("foi", "foiv")) %>% 
+  write_rds(., "data/intermediate/reduced_foi.rds")
 
 res$dynamics %>% 
-  filter(compartment %in% c("cases","death_o")) %>% 
+  filter(compartment == "cases") %>% 
   ggplot(., aes(x = t, y = value, group = group)) +
-  geom_line() +
-  facet_wrap(~compartment, scales = "free") 
+  geom_line()
 
-res$dynamics %>% 
-  filter(compartment %in% c("S", "Sw", "Sv", "Sv2",
-                            "R", "Rv", "Rv2")) %>% 
-  mutate(broad = substr(compartment, 1, 1) %>% 
-           factor(., levels = c("S","R"))) %>% 
-  ggplot(., aes(x = t, 
-                y = value,
-                color = compartment,
-                group = compartment)) +
-  geom_line() +
-  facet_grid(broad~group)
+reduced <- read_rds("data/intermediate/reduced_foi.rds")
+baseline <- read_rds("data/intermediate/baseline_foi.rds")
 
-res$dynamics %>% 
-  filter(compartment %in% c("Sw", "Sv", "Sv2",
-                            "E", "Ev", "Ev2")) %>% 
-  # group_by(t, compartment) %>% summarise(value = sum(value)) %>% 
-  # mutate(compartment = factor(compartment, levels = c("Sv2", "Sv", "Sw"))) %>% 
-  ggplot(., aes(x = t, y = value, group = compartment, color = compartment)) +
-  geom_line() + facet_wrap(~group)
-  
-geom_bar(stat = "identity")
 
-res$dynamics %>% 
-  filter(compartment %in% c("S","Sw", "Sv", "Sv2",
-                            "Ip","Ia","Is",
-                            "E", "Ev", "Ev2",
-                            "R", "Rv","Rv2"
-                            )) %>%  
-  group_by(t, compartment) %>% summarise(value = sum(value)) %>% 
-  mutate(broad = substr(compartment, 1, 1),
-         broad = if_else(compartment %in% c("Sw", "Sv","Sv2"), 
-                         "V", 
-                         as.character(broad)),
-         broad = factor(broad,
-                        levels = c("S","V","E","I","R"))) %>% 
-  ggplot(., aes(x = t, 
-                y = value,
-                color = compartment,
-                group = compartment)) +
-  geom_bar(stat = "identity") +
-  facet_wrap(~broad, ncol = 1, scale = "free")
+reduced %>% rename(reduced = value) %>% 
+  left_join(baseline %>% rename(baseline = value),
+            by = c("run", "t", "population", "group", "compartment")) %>%
+  group_by(run, t, population, compartment) %>% 
+  summarise(reduced = sum(reduced),
+            baseline = sum(baseline)) %>% 
+  filter(t > 750) %>% 
+  ggplot(.) +
+  geom_point(aes(x = t, y = reduced), color = "red") +
+  geom_point(aes(x = t, y = baseline), color = "blue") +
+  facet_wrap(~compartment) 
+
+# res$dynamics %>% 
+#   filter(compartment %in% c("cases","death_o")) %>% 
+#   ggplot(., aes(x = t, y = value, group = group)) +
+#   geom_line() +
+#   facet_wrap(~compartment, scales = "free") 
+# 
+# res$dynamics %>% 
+#   filter(compartment %in% c("S", "Sw", "Sv", "Sv2",
+#                             "R", "Rv", "Rv2")) %>% 
+#   mutate(broad = substr(compartment, 1, 1) %>% 
+#            factor(., levels = c("S","R"))) %>% 
+
+#   ggplot(., aes(x = t, 
+#                 y = value,
+#                 color = compartment,
+#                 group = compartment)) +
+#   geom_line() +
+#   facet_grid(broad~group)
+
+# res$dynamics %>% 
+#   filter(compartment %in% c("Sw", "Sv", "Sv2",
+#                             "E", "Ev", "Ev2")) %>% 
+#   # group_by(t, compartment) %>% summarise(value = sum(value)) %>% 
+#   # mutate(compartment = factor(compartment, levels = c("Sv2", "Sv", "Sw"))) %>% 
+#   ggplot(., aes(x = t, y = value, group = compartment, color = compartment)) +
+#   geom_line() + facet_wrap(~group)
+#   
+# geom_bar(stat = "identity")
+# 
+# res$dynamics %>% 
+#   filter(compartment %in% c("S","Sw", "Sv", "Sv2",
+#                             "Ip","Ia","Is",
+#                             "E", "Ev", "Ev2",
+#                             "R", "Rv","Rv2"
+#                             )) %>%  
+#   group_by(t, compartment) %>% summarise(value = sum(value)) %>% 
+#   mutate(broad = substr(compartment, 1, 1),
+#          broad = if_else(compartment %in% c("Sw", "Sv","Sv2"), 
+#                          "V", 
+#                          as.character(broad)),
+#          broad = factor(broad,
+#                         levels = c("S","V","E","I","R"))) %>% 
+#   ggplot(., aes(x = t, 
+#                 y = value,
+#                 color = compartment,
+#                 group = compartment)) +
+#   geom_bar(stat = "identity") +
+#   facet_wrap(~broad, ncol = 1, scale = "free")
 
 
 # params <- gen_country_basics("Thailand") 
