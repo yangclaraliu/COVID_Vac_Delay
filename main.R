@@ -25,7 +25,21 @@ params_1 <-   update_vac_char(params,
                               v2e_d  = ve$ve_d[2],    # clinical fraction among breakthrough post 2 doses
                               wv = 1/120) # 1/ waning duration
 
-params_2 <- vac_policy(params_1,
+params_2 <- change_VOC(params_1,
+                       date_swtich = "2021-03-15",
+                       rc_severity = 1.5,
+                       rc_transmissibility = 1.5,
+                       rc_ve = 0.4)
+
+res <- cm_simulate(params_2)
+res$dynamics %>% 
+  filter(compartment %in% c("death_voc_o", "death_o")) %>%
+  ggplot(., aes(x = t, y = value)) +
+  geom_point() +
+  facet_wrap(~compartment)
+
+
+params_3 <- vac_policy(params_2,
                        # these two parameters define the supply conditions
                        milestone_date = c("2021-03-01", # start from 0
                                           "2021-06-30", # 0.03
@@ -50,13 +64,6 @@ params_2 <- vac_policy(params_1,
                        supply_delay = 20 # unit = weeks
                        
 )
-
-res <- cm_simulate(params_1)
-res$dynamics %>% 
-  filter(compartment %in% c("hosp_i", "hosp_p","hosp_o")) %>%
-  pivot_wider(names_from = compartment, values_from = value) %>% 
-  ggplot(., aes(x = hosp_i, y = hosp_o)) +
-  geom_point()
   write_rds(., "data/intermediate/reduced_foi.rds")
 
 res$dynamics %>% 

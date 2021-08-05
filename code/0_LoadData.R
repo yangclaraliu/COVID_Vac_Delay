@@ -4,7 +4,7 @@ pacman::p_load(
   ggsflabel, mgcv, pspline, viridis, ggsci, mgcv, imputeTS, ggpattern,
   ggpubr, gridExtra, grid,   tidyverse, sf, countrycode, rnaturalearth, 
   magrittr, data.table, ggsflabel, mgcv, pspline, viridis, ggsci, mgcv, 
-  imputeTS, cowplot, qs
+  imputeTS, cowplot, qs, testthat
 )
 
 #### load epidemic parameters ####
@@ -250,7 +250,7 @@ burden_processes <- list(
   cm_multinom_process("Ev",      data.frame(to_hosp = P.hosp*(1-ve$ve_h[1])),   delays = data.frame(to_hosp = delay_2severe)),
   cm_multinom_process("Ev2",     data.frame(to_hosp = P.hosp*(1-ve$ve_h[2])),   delays = data.frame(to_hosp = delay_2severe)),
   
-  cm_multinom_process("to_hosp", data.frame(hosp = rep(1,16)),                  delays = data.frame(hosp = delay_2hosp),   report = "ipo")
+  cm_multinom_process("to_hosp", data.frame(hosp = rep(1,16)),                  delays = data.frame(hosp = delay_2hosp),   report = "ip")
 )
 
 #### impute contact ####
