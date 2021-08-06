@@ -31,14 +31,6 @@ params_2 <- change_VOC(params_1,
                        rc_transmissibility = 1.5,
                        rc_ve = 0.4)
 
-res <- cm_simulate(params_2)
-res$dynamics %>% 
-  filter(compartment %in% c("death_voc_o", "death_o")) %>%
-  ggplot(., aes(x = t, y = value)) +
-  geom_point() +
-  facet_wrap(~compartment)
-
-
 params_3 <- vac_policy(params_2,
                        # these two parameters define the supply conditions
                        milestone_date = c("2021-03-01", # start from 0
@@ -58,33 +50,21 @@ params_3 <- vac_policy(params_2,
                        cov_max = c(rep(0,4),
                                    rep(0.7, 8),
                                    rep(0.9, 4)),
-                       # the proportion of age groups at which we will compare
-                       # rolling out dose 2s or more dose 1s
-                       p_change = 0.7,
-                       supply_delay = 20 # unit = weeks
-                       
-)
-  write_rds(., "data/intermediate/reduced_foi.rds")
+                       supply_delay = 20, # unit = weeks
+                       dose_interval = c(4, 16))
 
-res$dynamics %>% 
-  filter(compartment == "cases") %>% 
-  ggplot(., aes(x = t, y = value, group = group)) +
+
+res <- lapply(1:4, function(x) cm_simulate(params_3$res[[x]]))
+
+res %>% 
+  map(~.$dynamics) %>% 
+  bind_rows(.id = "scenario") %>% 
+  filter(compartment == "death_o") %>% 
+  group_by(scenario, t) %>% 
+  summarise(value = sum(value)) %>% 
+  ggplot(., aes(x = t, y = value, group = scenario, color = scenario)) +
   geom_line()
 
-reduced <- read_rds("data/intermediate/reduced_foi.rds")
-baseline <- read_rds("data/intermediate/baseline_foi.rds")
-
-reduced %>% rename(reduced = value) %>% 
-  left_join(baseline %>% rename(baseline = value),
-            by = c("run", "t", "population", "group", "compartment")) %>%
-  group_by(run, t, population, compartment) %>% 
-  summarise(reduced = sum(reduced),
-            baseline = sum(baseline)) %>% 
-  filter(t > 750) %>% 
-  ggplot(.) +
-  geom_point(aes(x = t, y = reduced), color = "red") +
-  geom_point(aes(x = t, y = baseline), color = "blue") +
-  facet_wrap(~compartment) 
 
 # res$dynamics %>% 
 #   filter(compartment %in% c("cases","death_o")) %>% 
