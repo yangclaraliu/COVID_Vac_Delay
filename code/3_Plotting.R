@@ -1,67 +1,63 @@
 strategy_labels <- c(paste0("A",1:5),paste0("B", c(1,2)))
 
 # 
-owid_vac %>% 
-  # filter(iso_code %in% euro_inuse) %>% 
-  filter(iso_code %in% euro_lmic,
-         !(iso_code %in% "TKM")) %>% 
-  left_join(vac_denom, by = c("iso_code" = "iso3c")) %>% 
-  mutate(cov = people_vaccinated/tot) %>% 
-  filter(!is.na(cov)) %>% 
-  ggplot(., aes(x = date, y = cov, group = iso_code)) +
-  geom_line() +
-  geom_point() +
-  geom_line(data = data.frame(date = ymd(c("2021-03-01", 
-                                           "2021-06-30",
-                                           "2021-12-31")),
-                              cov = c(0, 0.03, 0.2),
-                              iso_code = "mean"),
-            aes(x = date, y = cov),
-            color = "red") +
-  theme_cowplot() +
-  labs(x = "", y = "% of popullation vaccinated") +
-  # facet_wrap(~iso_code) +
-  geom_hline(yintercept = 0.2, linetype = 2)
-  # filter(cov <= 0.1) %>% 
-  # group_by(iso_code) %>% mutate(rk_date = rank(desc(date))) %>% 
-  # filter(rk_date == 1) %>% 
-  # pull(date) %>% sort
-  # ggplot(., aes(x = date)) +
-  # geom_histogram()
-
-owid_vac %>% 
-  # filter(iso_code %in% euro_inuse) %>% 
-  filter(iso_code %in% euro_lmic) %>% 
-  group_by(iso_code) %>% group_split() %>% map(nrow)
-
+# owid_vac %>% 
+#   # filter(iso_code %in% euro_inuse) %>% 
+#   filter(iso_code %in% euro_lmic,
+#          !(iso_code %in% "TKM")) %>% 
+#   left_join(vac_denom, by = c("iso_code" = "iso3c")) %>% 
+#   mutate(cov = people_vaccinated/tot) %>% 
+#   filter(!is.na(cov)) %>% 
+#   ggplot(., aes(x = date, y = cov, group = iso_code)) +
+#   geom_line() +
+#   geom_point() +
+#   geom_line(data = data.frame(date = ymd(c("2021-03-01", 
+#                                            "2021-06-30",
+#                                            "2021-12-31")),
+#                               cov = c(0, 0.03, 0.2),
+#                               iso_code = "mean"),
+#             aes(x = date, y = cov),
+#             color = "red") +
+#   theme_cowplot() +
+#   labs(x = "", y = "% of popullation vaccinated") +
+#   # facet_wrap(~iso_code) +
+#   geom_hline(yintercept = 0.2, linetype = 2) -> p
+#   # filter(cov <= 0.1) %>% 
+#   # group_by(iso_code) %>% mutate(rk_date = rank(desc(date))) %>% 
+#   # filter(rk_date == 1) %>% 
+#   # pull(date) %>% sort
+#   # ggplot(., aes(x = date)) +
+#   # geom_histogram()
+# 
+# ggsave("figs/supplemental/observed_coverage.png")
 
 #### Figures ####
-lapply(1:13, function(y) {
-  lapply(c(1:7), function(x) params_2_vp[[y]]$scenarios[[x]]$daily_vac_scenarios) %>% 
+lapply(1:18, function(y) {
+  lapply(c(1:7), function(x) params_3_vp[[y]]$scenarios[[x]]$daily_vac_scenarios) %>% 
     setNames(c(1:7)) %>% bind_rows(.id = "strategy") %>% 
-    mutate(wb = model_selected$wb[[y]],
-           pop = sum(params_2_vp[[y]]$param$pop[[1]]$size))
+    mutate(iso3c = model_selected_ur$iso3c[[y]],
+           pop = sum(params_3_vp[[y]]$param$pop[[1]]$size))
 }) %>% 
   bind_rows() %>% 
-  dplyr::select(date, strategy,starts_with("Y"), wb, pop) %>% 
-  group_by(strategy, wb,pop) %>% 
+  dplyr::select(date, strategy,starts_with("Y"), iso3c, pop) %>% 
+  group_by(strategy, iso3c,pop) %>% 
   group_split() %>% map(arrange, date) %>% 
   map(mutate_at, vars(starts_with("Y")), cumsum) %>% bind_rows() %>% 
   pivot_longer(cols = starts_with("Y")) %>%
   mutate(dose = if_else(grepl("d1",name), "Dose 1", "Dose 2")) %>% 
   #separate(name, into = c("ag","dose")) %>% 
-  group_by(date, strategy, dose, wb, pop) %>% 
+  group_by(date, strategy, dose, iso3c, pop) %>% 
   summarise(value = sum(value)) %>% 
-  mutate(value = value/pop,
+  mutate(cov = value/pop,
          strategy = factor(strategy,
                            levels = c(1:5, 7, 6),
                            labels = strategy_labels)) -> tmp
 
 lapply(1, function(y) {
-  lapply(c(1), function(x) params_2_vp[[y]]$scenarios[[x]]$daily_vac_scenarios) %>% 
+  lapply(c(1), function(x) params_3_vp[[y]]$scenarios[[x]]$daily_vac_scenarios) %>% 
     setNames(c(1)) %>% bind_rows(.id = "strategy") %>% 
-    mutate(wb = model_selected$wb[[y]],
-           pop = sum(params_2_vp[[y]]$param$pop[[1]]$size))
+    mutate(wb = model_selected_ur$iso3c[[y]],
+           pop = sum(params_3_vp[[y]]$param$pop[[1]]$size))
 }) %>% 
   .[[1]] %>% 
   select( starts_with("supply"), pop, date) %>% 
@@ -69,12 +65,37 @@ lapply(1, function(y) {
   mutate(supply = supply/pop,
          supply_2 = supply_2/pop) -> tmp_supply
 
+# tmp %>% 
+#   filter(strategy %in% strategy_labels[c(1,5:7)]) %>% 
+#   left_join(tmp_supply, by = "date") %>%
+#   filter(date >= "2021-02-01",
+#          iso3c != "MNE",
+#          iso3c != "TJK",
+#          strategy == "A1") %>% 
+#   ggplot(., aes(x = date)) +
+#   geom_line(size = 1.2, alpha = 0.8, aes(y = cov, group = interaction(iso3c, dose), color = dose)) +
+#   geom_line(aes(y = supply, linetype = "Dose 1"), size = 1.5) +
+#   geom_line(aes(y = supply_2, linetype = "Dose 2"), size = 1.5) +
+#   scale_linetype_manual(values = c(2,3)) +
+#   facet_wrap(~iso3c) +
+#   ggsci::scale_color_lancet() +
+#   cowplot::theme_cowplot() +
+#   labs(color = "Allocated:", y = "Vaccine Coverage by Dose", 
+#        x = "Year", linetype = "Supply:") +
+#   theme(strip.background = element_rect(fill = NA, color = "black"),
+#         strip.text = element_text(size = 16),
+#         legend.text = element_text(size =16),
+#         legend.position = "top",
+#         legend.key.width = unit(2,"cm")) 
+
 tmp %>% 
-  filter(strategy %in% strategy_labels[c(1,5:7)]) %>% 
+  filter(strategy %in% strategy_labels[c(1,5:7)],
+         iso3c %in% euro_inuse
+         ) %>% 
   left_join(tmp_supply, by = "date") %>%
   filter(date >= "2021-02-01") %>% 
   ggplot(., aes(x = date)) +
-  geom_line(size = 1.2, alpha = 0.8, aes(y = value, group = interaction(wb, dose), color = dose)) +
+  geom_line(size = 1.2, alpha = 0.8, aes(y = cov, group = interaction(iso3c, dose), color = dose)) +
   geom_line(aes(y = supply, linetype = "Dose 1"), size = 1.5) +
   geom_line(aes(y = supply_2, linetype = "Dose 2"), size = 1.5) +
   scale_linetype_manual(values = c(2,3)) +
@@ -110,10 +131,10 @@ ve %>%
                                      "Mortality"))) %>% 
   ggplot(., aes(x = dose, y = value, group = ve_type, pch = ve_type)) +
   geom_line() + 
-  geom_hline(yintercept = seq(0.65, 0.95, 0.1), linetype = 2) +
-  scale_y_continuous(breaks = seq(0.65, 0.95, 0.1)) +
+  geom_hline(yintercept = seq(0.35, 0.95, 0.1), linetype = 2) +
+  scale_y_continuous(breaks = seq(0.35, 0.95, 0.1)) +
   geom_point(size = 3) + 
-  labs(x = "Dose", y = "VE by Target", pch = "") +
+  labs(x = "Dose", y = "Vaccine Efficacy\nby Target", pch = "") +
   theme_cowplot() +
   theme(legend.position = "right") -> p2
 
@@ -135,7 +156,8 @@ data.frame(strategy = strategy_labels,
   geom_label(x = "2nd", y = 0.75, label = "A2/3", size = 6) +
   geom_label(x = "2nd", y = 0.85, label = "A4/5", size = 6) +
   geom_label(x = "2nd", y = 0.95, label = "B1/2", size = 6) +
-  labs(x = "Dose", y = "Infection- and \nDisease-reducing \nVE by Dosing Interval") +
+  labs(x = "Dose", 
+       y = "Infection- and Disease-reducing\nVaccine Efficacy\nby Dosing Interval") +
   theme_cowplot() -> p3
 
 

@@ -42,7 +42,9 @@ vignettes/*.pdf
 /code/covidm_for_fitting/build
 
 # ignore exceptionally large files
-data/intermediate/res_baseline.rdata
-data/intermediate/params_vp_18.rdata
-data/intermediate/SA_VE.rds
-data/intermediate/SA_VE_360.rds
+/data/intermediate/res_baseline.rdata
+/data/intermediate/res_baseline_v3.rdata
+/data/intermediate/params_vp_18.rdata
+/data/intermediate/SA_VE.rds
+/data/intermediate/SA_VE_360.rds
+/data/intermediate/params_3_vp_18.rdata
