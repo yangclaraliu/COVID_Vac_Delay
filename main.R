@@ -6,64 +6,195 @@ cm_force_rebuild <- F
 cm_build_verbose <- T
 cm_version <- 2
 source(paste0(cm_path, "/R/covidm.R"))
-
 source("code/util_functions.R")
 source("code/0_LoadData.R")
+load("data/intermediate/params_3_vp_18.rdata")
+# load(paste0(path_dropbox,"params_vp_all.rdata"))
 
-params <- gen_country_basics(country = "Belgium",
-                             waning_nat = 52*7,
-                             R0_assumed  = 2.5,
-                             date_start = "2020-01-01",
-                             date_end = "2022-12-31",
-                             processes = burden_processes,
-                             deterministic = TRUE)
+# 
+# #
+# res_by_country_2 %>% 
+#   map(filter, grepl("death|hosp|cases", compartment)) %>% 
+#   map(group_by, scenario, t, compartment) %>% 
+#   map(summarise, value = sum(value)) %>% 
+#   map(pivot_wider, names_from = compartment, values_from = value) -> res_2
+# 
+# res_by_country_3 %>% 
+#   map(filter, grepl("death|hosp|cases", compartment)) %>% 
+#   map(group_by, scenario, t, compartment) %>% 
+#   map(summarise, value = sum(value)) %>% 
+#   map(pivot_wider, names_from = compartment, values_from = value) -> res_3
+# 
+# res_by_country_2_sw %>% 
+#   map(filter, grepl("death|hosp|cases", compartment)) %>% 
+#   map(group_by, scenario, t, compartment) %>% 
+#   map(summarise, value = sum(value)) %>% 
+#   map(pivot_wider, names_from = compartment, values_from = value) -> res_2_sw
+# 
+# res_by_country_3_sw %>% 
+#   map(filter, grepl("death|hosp|cases", compartment)) %>% 
+#   map(group_by, scenario, t, compartment) %>% 
+#   map(summarise, value = sum(value)) %>% 
+#   map(pivot_wider, names_from = compartment, values_from = value) -> res_3_sw
+# 
+# for(i in 12:nrow(model_selected)){
+#   res_2[[i]] %<>% 
+#     mutate(date = model_selected$t[i] + ymd("2019-12-01") + t)
+#   
+#   res_3[[i]] %<>% 
+#     mutate(date = model_selected$t[i] + ymd("2019-12-01") + t)
+# }
+# 
+# for(i in 1:11){
+#   res_2_sw[[i]] %<>% 
+#     mutate(date = model_selected$t[i] + ymd("2019-12-01") + t)
+#   
+#   res_3_sw[[i]] %<>% 
+#     mutate(date = model_selected$t[i] + ymd("2019-12-01") + t)
+# }
+# 
+# save(res_2, res_3, res_2_sw, res_3_sw,
+#      file = paste0(path_dropbox,"res_vp.rdata"))
+# 
+# 
+# res_2 %<>% 
+#   map(mutate, VOC = if_else(date <= "2021-04-15", F, T)) %>% 
+#   map(mutate, death_w_voc = if_else(VOC == T, death_voc_o, death_o)) %>% 
+#   map(mutate, hosp_w_voc = if_else(VOC == T, hosp_voc_i, hosp_i)) %>% 
+#   map(filter, date >= "2021-03-01")
+# 
+# res_3 %<>% 
+#   map(mutate, VOC = if_else(date <= "2021-04-15", F, T)) %>% 
+#   map(mutate, death_w_voc = if_else(VOC == T, death_voc_o, death_o)) %>% 
+#   map(mutate, hosp_w_voc = if_else(VOC == T, hosp_voc_i, hosp_i)) %>% 
+#   map(filter, date >= "2021-03-01")
+# 
+# 
+# res_2_sw %<>% 
+#   map(mutate, VOC = if_else(date <= "2021-04-15", F, T)) %>% 
+#   map(mutate, death_w_voc = if_else(VOC == T, death_voc_o, death_o)) %>% 
+#   map(mutate, hosp_w_voc = if_else(VOC == T, hosp_voc_i, hosp_i)) %>% 
+#   map(filter, date >= "2021-03-01")
+# 
+# res_3_sw %<>% 
+#   map(mutate, VOC = if_else(date <= "2021-04-15", F, T)) %>% 
+#   map(mutate, death_w_voc = if_else(VOC == T, death_voc_o, death_o)) %>% 
+#   map(mutate, hosp_w_voc = if_else(VOC == T, hosp_voc_i, hosp_i)) %>% 
+#   map(filter, date >= "2021-03-01")
+#   
+# save(res_2, res_3, res_2_sw, res_3_sw,
+#      file = paste0(path_dropbox,"res_vp.rdata"))
+# 
+# 
+# res_3_sw %>% 
+#   map(dplyr::select, -death_voc_o, -hosp_voc_i, -death_o, -hosp_i) %>% 
+#   map(group_by, scenario) %>% 
+#   map(summarise, 
+#       cases = sum(cases),
+#       death = sum(death_w_voc),
+#       hosp = sum(hosp_w_voc)) %>% 
+#   bind_rows(.id = "country_index") %>% 
+#   left_join(model_selected %>% 
+#               mutate(country_index = 1:13) %>% 
+#               dplyr::select(country_index, country_name) %>% 
+#               mutate(country_index = as.character(country_index)),
+#             by = "country_index") %>% 
+#   group_by(country_index) %>% group_split() %>% 
+#   map(mutate, 
+#       cases_p = cases/min(cases),
+#       death_p = death/min(death),
+#       hosp_p = hosp/min(hosp)) %>% 
+#   bind_rows() %>% 
+#   pivot_longer(cols = ends_with("_p")) %>% 
+#   mutate(scenario = factor(scenario, levels = 1:7,
+#                            labels = c(paste0(seq(4,20,4),"w"),
+#                                       "Prior_Cov",
+#                                       "Prior_Comp")),
+#          name = factor(name,  levels = c("cases_p", "hosp_p", "death_p"),
+#                        labels = c("Infections", "Severe Cases", "Mortality"))) %>% 
+#   ggplot(., aes(x = scenario, y = value, color = name)) +
+#   geom_boxplot() +
+#   labs(y = "Prevention Protential Lost\n(Target Outcome)/(Best Achievable Outcome)") +
+#   theme_cowplot() +
+#   scale_color_lancet() +
+#   labs(color = "", x = "Dosing Interval", title = "First Dose Waning = 120 Days") +
+#   theme(legend.position = "top",
+#         legend.text = element_text(size = 18),
+#         title = element_text(size = 18),
+#         axis.text = element_text(size = 14))
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# # %>% 
+#   dplyr::select(-death_voc_o, -hosp_voc_i, -death_o, -hosp_i) %>%
+#   # group_by(scenario) %>% group_split() %>%
+#   # map(~mutate_at(., vars(c(cases, death_w_voc,hosp_w_voc)), cumsum)) %>% bind_rows() %>%
+#   pivot_longer(cols = c(starts_with("death"), starts_with("hosp"), "cases")) %>% 
+#   mutate(VOC = if_else(date >= "2021-04-15", F, T),
+#          name = factor(name,
+#                        levels = c("cases", "hosp_w_voc", "death_w_voc"),
+#                        labels = c("Cases", "Severe Cases", "Deaths"))) %>% ungroup %>% 
+#   # separate(name, into = c("metric", "stat", "voc"), remove = F) %>% 
+#   ggplot(., aes(x = date, y = value, group = scenario, color = scenario)) +
+#   geom_line(size = 1.2) +
+#   facet_wrap(~name, ncol = 1, scales = "free") + theme_bw() +
+#   labs(x = "", y = "") +
+#   theme(strip.text = element_text(size = 16))
+# 
+# res_by_country[[1]] %>% 
+#   bind_rows(.id = "scenario") %>% 
+#   filter(grepl("death|hosp|cases", compartment)) %>% 
+#   mutate(date = model_selected$t[6] + ymd("2019-12-01") + t) %>% 
+#   mutate(VOC = if_else(date <= "2021-04-15", F, T)) %>% 
+#   pivot_wider(names_from = compartment, values_from = value) %>% 
+#   group_by(scenario, date, VOC) %>% 
+#   summarise(death_o = sum(death_o),
+#             death_voc_o = sum(death_voc_o),
+#             hosp_i = sum(hosp_i),
+#             hosp_voc_i = sum(hosp_voc_i),
+#             cases = sum(cases)) %>% 
+#   mutate(death_w_voc = if_else(VOC == T, death_voc_o, death_o),
+#          hosp_w_voc = if_else(VOC == T, hosp_voc_i, hosp_i)) %>%
+#   filter(date >= "2021-03-01") %>% 
+#   dplyr::select(-death_voc_o, -hosp_voc_i, -death_o, -hosp_i) %>%
+#   # group_by(scenario) %>% group_split() %>%
+#   # map(~mutate_at(., vars(c(cases, death_w_voc,hosp_w_voc)), cumsum)) %>% bind_rows() %>%
+#   pivot_longer(cols = c(starts_with("death"), starts_with("hosp"), "cases")) %>% 
+#   group_by(scenario, name) %>% 
+#   summarise(value = sum(value)) %>% 
+#   filter(scenario %in% 1:5) -> test
+# 
+# test %>% 
+#   mutate(scenario = factor(scenario, levels = c(1:5),
+#                            labels = seq(4,20,4))) %>% 
+#   ggplot(., aes(x = scenario, y = value, group = name)) +
+#   geom_line() +
+#   facet_wrap(~name, scales = "free")
 
-params_1 <-   update_vac_char(params,
-                              ve_i   = ve$ve_i_o[1],  # infection blocking VE post 1 dose
-                              v2e_i  = ve$ve_i_o[2],  # infection blocking VE post 2 doses
-                              ve_d   = ve$ve_d[1],    # clinical fraction among breakthrough post 1 dose
-                              v2e_d  = ve$ve_d[2],    # clinical fraction among breakthrough post 2 doses
-                              wv = 1/120) # 1/ waning duration
 
-params_2 <- change_VOC(params_1,
-                       date_swtich = "2021-03-15",
-                       rc_severity = 1.5,
-                       rc_transmissibility = 1.5,
-                       rc_ve = 0.4)
-
-params_3 <- vac_policy(params_2,
-                       # these two parameters define the supply conditions
-                       milestone_date = c("2021-03-01", # start from 0
-                                          "2021-06-30", # 0.03
-                                          "2021-12-31", # all population; 0.2
-                                          "2022-12-31"), # 0.6
-                       milestone_cov = c(0,
-                                         0.03,
-                                         0.2,
-                                         0.5),
-                       # prioritisation, assume 60+  all prioritised
-                       priority = c(NA, NA, NA, NA,
-                                    2,  2,  2,  2,
-                                    2,  2,  2,  2,
-                                    1,  1,  1,  1),
-                       # maximum feasible uptakes
-                       cov_max = c(rep(0,4),
-                                   rep(0.7, 8),
-                                   rep(0.9, 4)),
-                       supply_delay = 20, # unit = weeks
-                       dose_interval = c(4, 16))
-
-
-res <- lapply(1:4, function(x) cm_simulate(params_3$res[[x]]))
-
-res %>% 
-  map(~.$dynamics) %>% 
-  bind_rows(.id = "scenario") %>% 
-  filter(compartment == "death_o") %>% 
-  group_by(scenario, t) %>% 
-  summarise(value = sum(value)) %>% 
-  ggplot(., aes(x = t, y = value, group = scenario, color = scenario)) +
-  geom_line()
+# res %>% 
+#   map(~.$dynamics) %>% 
+#   bind_rows(.id = "scenario") %>% 
+#   filter(compartment == "death_o") %>% 
+#   group_by(scenario, t) %>% 
+#   summarise(value = sum(value)) %>% 
+#   ggplot(., aes(x = t, y = value, group = scenario, color = scenario)) +
+#   geom_line()
 
 
 # res$dynamics %>% 

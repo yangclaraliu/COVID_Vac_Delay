@@ -1,3 +1,5 @@
+path_dropbox <- "C:/Users/eideyliu/Dropbox/Github_Data/COVID-Vac_Delay/"
+
 #### load packages ####
 pacman::p_load(
   tidyverse, sf, countrycode, rnaturalearth, magrittr, data.table,
@@ -6,6 +8,77 @@ pacman::p_load(
   magrittr, data.table, ggsflabel, mgcv, pspline, viridis, ggsci, mgcv, 
   imputeTS, cowplot, qs, testthat
 )
+
+# imported fitted results
+# old fitting table, needs to be updated
+# model_selected <- read_rds(paste0(path_dropbox, "DEoptim2_selected_debug.rds")) %>% 
+#   mutate(iso = countrycode(wb, "iso3c","wb"))
+
+model_selected_ur <- read_rds(paste0("data/intermediate/DEoptim3_selected.rds"))
+
+# read_rds(paste0(path_dropbox, "DEoptim3_selected_debug.rds")) %>% 
+#   mutate(iso = countrycode(wb, "iso3c","wb")) %>% 
+#   dplyr::select(country_name, iso) %>% 
+#   write_rds(., "data/country_dictionary.rds")
+
+country_dictionary <- read_rds("data/country_dictionary.rds")
+
+members_all <- model_selected_ur$iso3c
+members_remove <- read_rds(paste0(path_dropbox, 
+                                 "/intermediate/members_remove.rds"))
+
+## World bank list as of June 2020
+# https://databank.worldbank.org/data/download/site-content/CLASS.xls
+euro_lmic <- c("ALB","ARM","AZE","BLR","BIH","BGR","GEO","KAZ","XKX","KGZ",
+               "MDA","MNE","MKD","RUS","SRB","TJK","TUR","TKM","UKR","UZB")
+euro_inuse <- setdiff(euro_lmic, members_remove)
+
+# updated contact matrices
+load(paste0(path_dropbox, "contact_all.rdata"))
+load(paste0(path_dropbox, "contact_work.rdata"))
+load(paste0(path_dropbox, "contact_home.rdata"))
+load(paste0(path_dropbox, "contact_school.rdata"))
+load(paste0(path_dropbox, "contact_others.rdata"))
+
+model_selected_ur %<>% 
+  mutate(to_replace = iso3c %in% names(contact_all)) %>% 
+  left_join(country_dictionary, c("iso3c" = "iso"))
+
+tmp <- cm_parameters_SEI3R("Thailand")
+ag_labels <- tmp$pop[[1]]$group_names; rm(tmp)
+
+for(i in 1:nrow(model_selected_ur)){
+  if(model_selected_ur$to_replace[i]){
+    cm_matrices[[model_selected_ur$country_name[i]]]$home <-
+      as.matrix(contact_home[[model_selected_ur$iso3c[i]]]) %>% 
+      set_colnames(ag_labels) %>% 
+      set_rownames(ag_labels)
+    
+    cm_matrices[[model_selected_ur$country_name[i]]]$work <-
+      as.matrix(contact_work[[model_selected_ur$iso3c[i]]]) %>% 
+      set_colnames(ag_labels) %>% 
+      set_rownames(ag_labels)
+    
+    cm_matrices[[model_selected_ur$country_name[i]]]$school <-
+      as.matrix(contact_school[[model_selected_ur$iso3c[i]]]) %>% 
+      set_colnames(ag_labels) %>% 
+      set_rownames(ag_labels)
+    
+    cm_matrices[[model_selected_ur$country_name[i]]]$other <-
+      as.matrix(contact_others[[model_selected_ur$iso3c[i]]]) %>% 
+      set_colnames(ag_labels) %>% 
+      set_rownames(ag_labels)
+  }
+}
+
+# fix discrepancies among country names
+names(cm_matrices)[names(cm_matrices) == "TFYR of Macedonia"] <- 
+  "North Macedonia"
+
+# proxy for contact matrices (currently unavailable ?)
+cm_matrices[["Republic of Moldova"]] <- cm_matrices$Romania
+cm_matrices[["Turkmenistan"]] <- cm_matrices$Uzbekistan
+
 
 #### load epidemic parameters ####
 #####  Clinical Fraction #####
@@ -43,9 +116,9 @@ gm_type <- c("retail", "grocery", "parks", "transit", "work", "residential")
 #   ))
 # 
 # write_rds(gm, "data/gm.rds")
-gm <- read_rds("data/gm.rds")
+gm <- read_rds(paste0(path_dropbox, "gm.rds"))
 print(paste0("The Google Mobility Report in used was downloaded on ", 
-             file.info("data/gm.rds")$mtime, "."))
+             file.info(paste0(path_dropbox, "gm.rds"))$mtime, "."))
 
 # mobility scalers 
 curves <- data.table(
@@ -146,10 +219,10 @@ curves <- data.table(
 # qsave(si, "data/si.qs")
 # qsave(oxcgrt, "data/oxcgrt.qs")
 
-si <- qread("data/si.qs")
-oxcgrt <- qread("data/oxcgrt.qs")
+si <- qread(paste0(path_dropbox, "si.qs"))
+oxcgrt <- qread(paste0(path_dropbox,"oxcgrt.qs"))
 print(paste0("The Stringency Index and School Closure Data in used was downloaded on ", 
-             file.info("data/oxcgrt.qs")$mtime, "."))
+             file.info(paste0(path_dropbox, "si.qs"))$mtime, "."))
 
 si %>%
   filter(!is.na(StringencyIndex)) %>%
@@ -163,25 +236,27 @@ si %>%
          date > "2021-01-01") %>%
   pull(date) %>%
   min() -> si_stopdate
+
 #### our world in data ####
 # epi data
 # download.file(,
 #               paste0("data/owid.csv"))
 # owid_epi <- read_csv("https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/owid-covid-data.csv")
 # 
-# owid_epi[,"location"] %>% distinct() %>% 
-#   mutate(wb = countrycode(location, "country.name", "wb")) %>% 
-#   filter(!is.na(wb)) %>% 
-#   left_join(owid_epi, by = "location") %>% 
-#   .[, c("location", "wb","date", "new_deaths_smoothed", "new_cases_smoothed")] %>% 
-#   setNames(c("loc", "wb","date", "deaths", "cases")) %>%
+# owid_epi[,"location"] %>% distinct() %>%
+#   mutate(iso3c = countrycode(location, "country.name", "iso3c")) %>%
+#   filter(!is.na(iso3c)) %>%
+#   left_join(owid_epi, by = "location") %>%
+#   .[, c("location", "iso3c","date", "new_deaths_smoothed", "new_cases_smoothed")] %>%
+#   setNames(c("loc", "iso3c","date", "deaths", "cases")) %>%
 #   mutate_at(vars(c("deaths", "cases")), ~if_else(is.na(.), 0, .))%>%
-#   mutate_at(vars(c("deaths", "cases")), ~if_else(.<0, 0, .)) %>% 
-#   data.table %>% 
+#   mutate_at(vars(c("deaths", "cases")), ~if_else(.<0, 0, .)) %>%
+#   data.table %>%
 #   .[,date := lubridate::ymd(date)] -> epi
 # 
 # qsave(epi, "data/epi.qs")
-owid_epi <- qread("data/epi.qs")
+# owid_epi <- qread(paste0(path_dropbox, "epi.qs")) 
+owid_epi <- qread("data/epi.qs") 
 
 # vaccination data
 # owid_vac <- read_csv("https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/vaccinations/vaccinations.csv") 
@@ -191,9 +266,9 @@ owid_epi <- qread("data/epi.qs")
 #   left_join(owid_vac, by = "location") -> owid_vac
 # qsave(owid_vac, "data/owid_vac.qs")
 
-owid_vac <- qread("data/owid_vac.qs")
+owid_vac <- qread(paste0(path_dropbox, "owid_vac.qs"))
 print(paste0("Data from Our World in Data was downloaded on ", 
-             file.info("data/owid_vac.qs")$mtime,
+             file.info(paste0(path_dropbox, "owid_vac.qs"))$mtime,
              "."))
 
 cm_populations %>% 
@@ -201,7 +276,7 @@ cm_populations %>%
   filter(location_type == 4) %>% 
   group_by(name) %>% 
   summarise(tot = sum(tot) * 1000) %>% 
-  mutate(wb = countrycode(name, "country.name", "wb")) -> vac_denom
+  mutate(iso3c = countrycode(name, "country.name", "iso3c")) -> vac_denom
 
 # vaccine efficacy tested
 data.table(ve_i_o = c(0.67, 0.68),
@@ -309,34 +384,34 @@ si_stopvalue <- si[date == as.Date(si_stopdate)-1]
 #   mutate(d = as.numeric(date)) -> si_imputed
 
 # qsave(si_imputed, "data/si_imputed.qs")
-si_imputed <- qread("data/si_imputed.qs")
-
-# ggplot(si_imputed, aes(x = date,
-#                        color = status,
-#                        y = StringencyIndex)) +
-#   # geom_jitter() +
-#   geom_line(aes(group = wb)) +
-#   geom_point() +
-#   theme_bw() +
-#   scale_color_lancet() +
-#   facet_wrap(~wb) +
-#   labs(x = "Date", color = "",
-#        title = "OXCGRT - COVID19 Stringecy Index") +
-#   theme(axis.text.x = element_text(angle = 90),
-#         axis.text = element_text(size = 16),
-#         strip.text = element_text(size = 16),
-#         legend.position = "bottom",
-#         legend.text = element_text(size = 16),
-#         title = element_text(size = 16))  -> p
+# si_imputed <- qread(paste0(path_dropbox, "si_imputed.qs"))
 # 
-# ggsave("figs/figureSX_si.png", p, width = 20, height = 10); rm(p)
-
-
-#### process mobility ####
-# gm %>% 
+# # ggplot(si_imputed, aes(x = date,
+# #                        color = status,
+# #                        y = StringencyIndex)) +
+# #   # geom_jitter() +
+# #   geom_line(aes(group = wb)) +
+# #   geom_point() +
+# #   theme_bw() +
+# #   scale_color_lancet() +
+# #   facet_wrap(~wb) +
+# #   labs(x = "Date", color = "",
+# #        title = "OXCGRT - COVID19 Stringecy Index") +
+# #   theme(axis.text.x = element_text(angle = 90),
+# #         axis.text = element_text(size = 16),
+# #         strip.text = element_text(size = 16),
+# #         legend.position = "bottom",
+# #         legend.text = element_text(size = 16),
+# #         title = element_text(size = 16))  -> p
+# # 
+# # ggsave("figs/figureSX_si.png", p, width = 20, height = 10); rm(p)
+# 
+# 
+# #### process mobility ####
+# gm %>%
 #   melt(.,
 #        id.vars = c("country_name", "wb", "date"),
-#        measures.var = gm_type) %>% 
+#        measures.var = gm_type) %>%
 #   .[, c("m",
 #         "dow",
 #         "doy",
@@ -347,23 +422,23 @@ si_imputed <- qread("data/si_imputed.qs")
 #                          lubridate::yday(date),
 #                          as.numeric(date),
 #                          factor(variable),
-#                          (value + 100)/100)] %>% 
+#                          (value + 100)/100)] %>%
 #   left_join(., si %>%
-#               mutate(d = as.numeric(date)) %>% 
-#               .[,list(d,wb,StringencyIndex)], 
-#             by = c("wb", "d")) %>% 
-#   filter(date < si_stopdate) %>% 
+#               mutate(d = as.numeric(date)) %>%
+#               .[,list(d,wb,StringencyIndex)],
+#             by = c("wb", "d")) %>%
+#   filter(date < si_stopdate) %>%
 #   filter(variable %in% c("retail",
 #                          "transit",
 #                          "grocery",
-#                          "work")) %>% 
+#                          "work")) %>%
 #   mutate(wb = factor(wb)) -> tab
-# 
-# fit <- gam(formula = value ~  dow + s(wb, bs = "re") + variable + 
-#              variable*dow + StringencyIndex + variable*m, 
-#            data = tab, 
+#  
+# fit <- gam(formula = value ~  dow + s(wb, bs = "re") + variable +
+#              variable*dow + StringencyIndex + variable*m,
+#            data = tab,
 #            na.action = na.omit)
-# 
+# # 
 # CJ(date = seq(range(tab$date)[1],
 #               as.Date(sim_end),
 #               by = 1),
@@ -371,64 +446,64 @@ si_imputed <- qread("data/si_imputed.qs")
 #    variable = c("retail",
 #                 "transit",
 #                 "grocery",
-#                 "work")) %>% 
+#                 "work")) %>%
 #   .[, c("dow",
 #         "doy",
 #         "m",
 #         "d") := list(lubridate::wday(date) %>% factor,
 #                      lubridate::yday(date),
 #                      month(date),
-#                      as.numeric(date))]  %>% 
+#                      as.numeric(date))]  %>%
 #   .[, m := if_else(m == 12, 11, m)] %>%
 #   .[, m := if_else(m == 1, 2, m)] %>%
 #   .[, m := factor(m)] %>%
 #   left_join(si_imputed[,c("wb","d", "StringencyIndex","status")],
 #             by = c("wb", "d")) %>%
-#   split(by = "variable") %>% 
-#   map(arrange, date) %>% 
-#   bind_rows() %>% 
+#   split(by = "variable") %>%
+#   map(arrange, date) %>%
+#   bind_rows() %>%
 #   mutate(d = if_else(d >= max(tab$d), max(tab$d), d),
 #          country_missing = if_else(is.na(status), T, F)) -> pre_tab
-# 
+# # 
 # val <- predict(fit, pre_tab)
 # pre_tab %<>% mutate(predicted = val)
-# pre_tab %>% 
+# pre_tab %>%
 #   left_join(tab[,c("wb", "date", "variable","value")],
-#             by = c("wb","date", "variable")) %>% 
+#             by = c("wb","date", "variable")) %>%
 #   mutate(imputed = if_else(is.na(value),
 #                            predicted,
 #                            value)) -> gm_forecast
-# 
-# gm_forecast %<>% 
-#   data.table() %>% 
-#   dplyr::select(date, wb, variable, status, imputed) %>% 
-#   distinct() %>% 
+# # 
+# gm_forecast %<>%
+#   data.table() %>%
+#   dplyr::select(date, wb, variable, status, imputed) %>%
+#   distinct() %>%
 #   pivot_wider(names_from = variable,
 #               values_fn = function(x) mean(x, na.rm = T),
-#               values_from = imputed) %>% 
+#               values_from = imputed) %>%
 #   arrange(date, wb)
-# 
-# gm_forecast %>% 
+# # 
+# gm_forecast %>%
 #   mutate(work = if_else(work > 1.25, 1.25, work),
 #          othx = 0.345*retail + 0.445*transit + 0.21*grocery,
 #          othx = if_else(othx > 1.25, 1.25, othx),
 #          work = round(work, 2),
-#          othx = round(othx, 2)) %>% 
-#   left_join(curves[,c("perc","work_scaler")], by = c("work" = "perc")) %>% 
-#   left_join(curves[,c("perc", "other_scaler")], by = c("othx" = "perc")) %>% 
-#   dplyr::select(-c(grocery, retail, transit, work, othx)) %>% 
+#          othx = round(othx, 2)) %>%
+#   left_join(curves[,c("perc","work_scaler")], by = c("work" = "perc")) %>%
+#   left_join(curves[,c("perc", "other_scaler")], by = c("othx" = "perc")) %>%
+#   dplyr::select(-c(grocery, retail, transit, work, othx)) %>%
 #   rename(work = work_scaler,
 #          other = other_scaler) -> gm_scaled
-# 
-# country_data_length <- 
+# # 
+# country_data_length <-
 #   gm_scaled %>% group_by(wb) %>% group_split() %>% map(nrow) %>% unlist()
-# 
-# schedule_raw <- gm_scaled %>% 
+# # 
+# schedule_raw <- gm_scaled %>%
 #   mutate(home = 1,
-#          date = as.character(date)) %>% 
-#   left_join(oxcgrt %>% 
-#               dplyr::select(date, C1, wb) %>% 
-#               setNames(c("date", "school", "wb")), # %>% 
+#          date = as.character(date)) %>%
+#   left_join(oxcgrt %>%
+#               dplyr::select(date, C1, wb) %>%
+#               setNames(c("date", "school", "wb")), # %>%
 #             # mutate(school = case_when(school == 0 ~ 1,
 #             #                           is.na(school) ~ 1,
 #             #                           school == 3 ~ 0,
@@ -436,44 +511,102 @@ si_imputed <- qread("data/si_imputed.qs")
 #             by = c("date", "wb"))  %>%
 #   # filter(is.na(school)) %>% pull(date) %>% table
 #   # filter(is.na(school))
-#   # dplyr::filter(!is.na(school)) %>% 
+#   # dplyr::filter(!is.na(school)) %>%
 #   mutate(school = case_when(school == 0 ~ 1,
 #                             school == 3 ~ 0,
 #                             is.na(school) ~ 1,
-#                             TRUE ~ 0.5)) 
+#                             TRUE ~ 0.5))
 # 
 # CJ(date = seq(as.Date("2019-12-01"), as.Date("2020-02-14"),1),
-#    wb = unique(si$wb)) %>% 
-#   .[,status := "assumed"] %>% 
+#    wb = unique(si$wb)) %>%
+#   .[,status := "assumed"] %>%
 #   .[,c("work",
 #        "other",
 #        "home",
 #        "school",
-#        "date") := 
+#        "date") :=
 #       list(1,1,1,1,
 #            as.character(date))] -> schedule_pre
 # 
 # # school holidays
-# schedule_raw %<>%  
+# schedule_raw %<>%
 #   bind_rows(schedule_pre) %>%
-#   arrange(date) %>% 
+#   arrange(date) %>%
 #   mutate(date = lubridate::ymd(date),
 #          month = lubridate::month(date),
 #          day = lubridate::day(date),
-#          year = lubridate::year(date)) %>% 
+#          year = lubridate::year(date)) %>%
 #   mutate(holiday = if_else(
-#     #winter holiday, 
+#     #winter holiday,
 #     (year > 2020 & month == 12 & day >=  15) |
 #       (year > 2020 & month == 1 & day < 5) |
 #       # summer holiday
 #       month %in% c(7,8),
 #     T,
 #     F),
-#     school = if_else(holiday, 0, school)) %>% 
-#   dplyr::select(-holiday) %>% 
+#     school = if_else(holiday, 0, school)) %>%
+#   dplyr::select(-holiday) %>%
 #   mutate(status = if_else(is.na(status), "averaged", status))
 # 
-# qsave(schedule_raw, "data/schedule_raw.qs")
-schedule_raw <- qread("data/schedule_raw.qs") %>%   
-  dplyr::select(date, wb, status, home, work, school, other, month, day, year)
+# # qsave(schedule_raw, "data/schedule_raw.qs")
+# schedule_raw <- qread(paste0(path_dropbox, "schedule_raw.qs")) %>%   
+#   dplyr::select(date, wb, status, home, work, school, other, month, day, year)
+# 
+# # imputation
+# shp <- sf::read_sf(paste0(path_dropbox, "CNTR_RG_60M_2020_4326.shp"))
+# nb <- spdep::poly2nb(shp)
+# wb_missing <- schedule_raw %>% group_by(wb) %>% tally() %>% 
+#   mutate(n_max = max(n)) %>% filter(n != n_max) %>% 
+#   filter(wb %in% model_selected$wb) %>% 
+#   mutate(iso = countrycode(wb, "wb","country.name"))
+# 
+# nb_id <- sapply(1:nrow(wb_missing), function(x) {nb[[which(shp$ISO3_CODE == wb_missing$wb[x])]]}) 
+# nb_id <- lapply(1:length(nb_id), function(y) nb_id[[y]] %>% map(~shp[.,]) %>% bind_rows() %>% pull(ISO3_CODE))
+# tmp <- lapply(1:length(nb_id), function(x) {
+#       schedule_raw %>% filter(wb %in% nb_id[[x]]) %>% 
+#     group_by(date, month, day, year) %>% 
+#     summarise(home = mean(home),
+#               work = mean(work),
+#               school = mean(school),
+#               other = mean(other),
+#               .groups = "drop") %>% 
+#     mutate(status = "imputed",
+#            wb = wb_missing$wb[x]) %>% 
+#     dplyr::select(colnames(schedule_raw))
+#     }
+#   )
+# 
+# tmp_2replace <- schedule_raw %>% filter(wb %in% wb_missing$wb) %>% 
+#   group_by(wb) %>% group_split()
+# 
+# # fix element 1
+# existing_dates <- (bind_rows(tmp_2replace[[1]], tmp[[1]]) %>% group_by(date) %>% tally() %>% 
+#                     filter(n > 1) %>% pull(date))
+# tmp[[1]] %<>% 
+#   filter(!date %in% existing_dates) %>% 
+#   bind_rows(tmp_2replace[[1]]) %>% distinct()
+# 
+# # fix element 2
+# existing_dates <- (bind_rows(tmp_2replace[[2]], tmp[[2]]) %>% group_by(date) %>% tally() %>% 
+#                      filter(n > 1) %>% pull(date))
+# tmp[[2]] %<>% 
+#   filter(!date %in% existing_dates) %>% 
+#   bind_rows(tmp_2replace[[2]]) %>% distinct()
+#   
+# # fix element 3
+# existing_dates <- (bind_rows(tmp_2replace[[3]], tmp[[3]]) %>% group_by(date) %>% tally() %>% 
+#                      filter(n > 1) %>% pull(date))
+# 
+# tmp[[3]] %<>% 
+#   filter(!date %in% existing_dates) %>% 
+#   bind_rows(tmp_2replace[[3]]) %>% distinct()
+# 
+# # merge all imputations back
+# schedule_raw %<>% 
+#   filter(!wb %in% wb_missing$wb) %>% 
+#   bind_rows(tmp)
+
+schedule_raw <- read_rds(paste0(path_dropbox,"schedule_raw.rds"))
+
+
 

@@ -3,7 +3,7 @@
 .Rapp.history
 
 # Session Data files
-.RData
+# .RData
 
 # User-specific files
 .Ruserdata
@@ -40,3 +40,9 @@ vignettes/*.pdf
 
 # remove covidm due to size
 /code/covidm_for_fitting/build
+
+# ignore exceptionally large files
+data/intermediate/res_baseline.rdata
+data/intermediate/params_vp_18.rdata
+data/intermediate/SA_VE.rds
+data/intermediate/SA_VE_360.rds
