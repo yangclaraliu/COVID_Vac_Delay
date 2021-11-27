@@ -260,7 +260,23 @@ require(ggridges)
 
 tmp %>% 
   mutate(scenario = factor(scenario, levels = c(7,6),
-                           labels = c("B1","B2"))) %>% 
+                           labels = c("B1","B2")),
+         iso3c = countrycode(country_name, "country.name", "iso3c")) %>% 
+  filter(iso3c %in% euro_inuse) %>% 
+  group_by(scenario, country_name) %>% 
+  summarise(v1 = mean(V1)/7,
+            v2 = median(V1)/7) %>% 
+  group_by(scenario) %>% 
+  summarise(mean_LL = min(v1),
+            mean_UL = max(v1),
+            md_LL = min(v2),
+            md_UL = max(v2))
+
+tmp %>% 
+  mutate(scenario = factor(scenario, levels = c(7,6),
+                           labels = c("B1","B2")),
+         iso3c = countrycode(country_name, "country.name", "iso3c")) %>% 
+  filter(iso3c %in% euro_inuse) %>% 
   ggplot(., aes(x = V1, y = country_name, fill = scenario)) +
   geom_density_ridges(alpha = 0.75) +
   labs(y = "", color = "", x = "Dosing Interval (Days)") +
@@ -273,8 +289,9 @@ tmp %>%
   labs(fill = "") +
   scale_y_discrete(limits = rev) +
   geom_vline(xintercept = c(4*7, 20*7)) +
-  scale_x_continuous(breaks = c(28, 100, 140, 200, 300, 400,500),
-                     labels = c("A1", "100", "A5", "200", "300", "400", "500")) -> p 
+  scale_x_continuous(breaks = c(7*4, 7*20, 7*30, 40*7,50*7,60*7),
+                     labels = c("A1", "A5", "30wk", "40wk", "50wk","60wk")) -> p 
+
 
 # lapply(1:nrow(model_selected), function(x) {
 #   tmp_unroll[[x]] %>% map(summary) %>% bind_rows(.id = "scenario")
@@ -311,10 +328,10 @@ tmp %>%
 #     wow, this is really good code please use it
 
 
-ggsave("figs/fig3_18.png", p, height = 8, width = 12)
+ggsave("figs/fig3.png", p, height = 8, width = 12)
 
 #### baseline results ####
-res_baseline <- read_rds(paste0(path_dropbox,"intermediate/res_baseline_v2.rds"))
+res_baseline <- read_rds(paste0("data/intermediate/res_baseline_v3.rds"))
 outcome_by_strategy <- function(res_list, tab_name, outcome){
   if(outcome == "death") {l <- c("death", "death_o"); st = ""}
   if(outcome == "hosp") {l <- c("hosp", "hosp_i"); st = ""}
@@ -330,7 +347,9 @@ outcome_by_strategy <- function(res_list, tab_name, outcome){
   
   
   res_list[[tab_name]] %>% 
-    filter(compartment %in% l) %>%
+    mutate(iso3c = countrycode(population, "country.name", "iso3c")) %>% 
+    filter(compartment %in% l,
+           iso3c %in% euro_inuse) %>%
     group_by(scenario, population, compartment) %>% 
     summarise(value = sum(value)) %>% 
     pivot_wider(names_from = scenario, values_from = value) %>% 
@@ -359,9 +378,10 @@ outcome_by_strategy <- function(res_list, tab_name, outcome){
     geom_point(size = 2, alpha = 0.5) +
     scale_x_continuous(breaks = c(4,8,12,16,20,25,50),
                        labels = c("A1\n4w", "A2\n8w", "A3\n12w", "A4\n16w", 
-                                  "A5\n20w","B1\n25-29w","B2\n47-52w")) +
+                                  "A5\n20w","B1\n22-34w","B2\n43-56w")) +
     scale_y_continuous(breaks = c(0, 0.15, 0.3), labels = c("0%","15%","30%"),
-                       limits = c(-0.1, 0.4)) +
+                       limits = c(-0.1, 0.5)
+                       ) +
     # geom_dl(aes(label = wb), 
     #         method = list(dl.combine("first.points", "last.points")))
     geom_vline(xintercept = 25, linetype = 2) +
@@ -402,7 +422,8 @@ res_baseline[["res_3"]] %>%
 
 
 #### shorter waning ####
-res_sw <- read_rds(paste0(path_dropbox,"intermediate/res_sw_v2.rds"))
+# res_sw <- read_rds(paste0(path_dropbox,"intermediate/res_sw_v3.rds"))#
+res_sw <- read_rds("data/intermediate/res_sw_v3.rds")
 p4 <- outcome_by_strategy(res_sw, "res_3_sw", "death")
 p5 <- outcome_by_strategy(res_sw, "res_3_VOC_sw", "death")
 title <- ggdraw() + draw_label("Relative Differences in Cumulative COVID-19 Mortality Compared to B1\nwv = 120 days",
@@ -417,7 +438,7 @@ plot_grid(p2 + labs(subtitle = "w/ VOC\n1st dose wane at 360 days"),
           labels = c("(a)","(b)","(c)","(d)"),
           nrow = 2, byrow =T) -> p7
 
-ggsave("figs/fig4_v2.png", p7, width = 12, height = 9)
+ggsave("figs/fig4_v3.png", p7, width = 12, height = 9)
 
 res_sw[["res_3_sw"]] %>% 
   filter(compartment %in% c("death", "death_o")) %>%
@@ -541,7 +562,8 @@ SA_VE_VOC_360 %>%
                             labels = strategy_labels)) -> tmp
 
 res_baseline[["res_3_VOC"]] %>% 
-  filter(compartment %in% c("death", "death_o")) %>%
+  filter(compartment %in% c("death", "death_o"),
+         population %in% model_selected_ur) %>%
   group_by(scenario, population, compartment) %>% 
   summarise(value = sum(value)) %>% 
   pivot_wider(names_from = scenario, values_from = value) %>% 
@@ -593,7 +615,7 @@ ggsave("figs/supplemental/res_3_dynamic_VE.png", p, width = 10, height = 14)
 #   group_by(ve_set, scenarios, population) %>% 
 #   summarise(value = sum(V1)) %>% mutate(status = "w/o VOC") %>%  
 #   bind_rows(
-    SA_VE_VOC_360 %>% 
+SA_VE_360_VOC  %>% 
               bind_rows() %>% 
               filter(grepl("death", compartment)) %>% 
               filter(!(compartment == "hosp_voc_i" & VOC == F)) %>% 
@@ -617,13 +639,13 @@ ggsave("figs/supplemental/res_3_dynamic_VE.png", p, width = 10, height = 14)
   # dplyr::select(-B1, -value) %>% 
   # pivot_wider(names_from = status, values_from = relative) %>% 
   # filter(`w/o VOC` != `w/ VOC`) %>% View()
-  ggplot(., aes(x = scenarios, y = relative, group = ve_set)) +
+  ggplot(., aes(x = scenarios, y = relative-1, group = ve_set)) +
   geom_line(alpha = 0.01) +
-  geom_hline(yintercept = 1, linetype = 2) +
-  geom_hline(yintercept = 0.99, linetype = 2, color = "orange") +
-  geom_hline(yintercept = 0.95, linetype = 2, color = "red") +
-  geom_hline(yintercept = 1.01, linetype = 2, color = "orange") +
-  geom_hline(yintercept = 1.05, linetype = 2, color = "red") +
+  geom_hline(yintercept = 0, linetype = 2) +
+  geom_hline(yintercept = -0.01, linetype = 2, color = "orange") +
+  geom_hline(yintercept = -0.05, linetype = 2, color = "red") +
+  geom_hline(yintercept = 0.01, linetype = 2, color = "orange") +
+  geom_hline(yintercept = 0.05, linetype = 2, color = "red") +
   facet_wrap(~population, scales = "free", ncol = 3) +
   theme_cowplot() +
   theme(axis.title = element_text(size = 16),
@@ -637,6 +659,6 @@ ggsave("figs/supplemental/res_3_dynamic_VE.png", p, width = 10, height = 14)
        title = "Sensitivity analysis around first and second doses\ninfection-blocking and disease-reducing VEs",
        y = "Proportional Differences Compared to B1\nRCM") -> p
 
-ggsave("figs/SA_VE_VOC_360.png", p, width = 10, height = 15)
+ggsave("figs/supplemental/SA_VE_VOC_360.png", p, width = 10, height = 15)
   
   

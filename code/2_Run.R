@@ -111,9 +111,9 @@ params_3_VOC_vp_sw <- params_3_VOC_vp
 
 for(j in 1:nrow(model_selected_ur)){
   for(i in 1:n_scenario){
-    params_2_vp_sw[[j]]$res[[i]]$pop[[1]]$wv <- rep(1/120, 16)
+    # params_2_vp_sw[[j]]$res[[i]]$pop[[1]]$wv <- rep(1/120, 16)
     params_3_vp_sw[[j]]$res[[i]]$pop[[1]]$wv <- rep(1/120, 16)
-    params_2_VOC_vp_sw[[j]]$res[[i]]$pop[[1]]$wv <- rep(1/120, 16)
+    # params_2_VOC_vp_sw[[j]]$res[[i]]$pop[[1]]$wv <- rep(1/120, 16)
     params_3_VOC_vp_sw[[j]]$res[[i]]$pop[[1]]$wv <- rep(1/120, 16)
   }
 }

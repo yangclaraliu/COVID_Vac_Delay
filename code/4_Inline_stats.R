@@ -1,3 +1,21 @@
+res_3 %>% 
+  bind_rows() %>% 
+  filter(compartment == "S") %>% 
+  group_by(population, t) %>% 
+  summarise(value = sum(value)) %>% 
+  left_join(model_selected_ur, by = c("population" = "country_name")) -> tmp
+
+tmp %>% 
+  mutate(date = t.x + t.y + ymd("2019-12-01")) %>% 
+  filter(t.x == 0 | date == "2021-03-01") %>% 
+  group_by(iso3c) %>% group_split() %>% map(add_column, cat = c("start","end")) %>% 
+  bind_rows() %>% 
+  dplyr::select(population, iso3c, value, cat) %>% 
+  pivot_wider(names_from = cat, values_from = value) %>% 
+  mutate(diff = (start-end)/start) %>% 
+  filter(iso3c %in% euro_inuse) %>% 
+  pull(diff) %>% range
+
 #### inline statistics ####
 owid_vac %>% 
   filter(wb %in% euro_inuse) %>% 
@@ -9,6 +27,7 @@ owid_vac %>%
   geom_hline(yintercept = c(0.2, 0.3))
 
 # 
+l <- c("death","death_o")
 res_baseline[["res_3_VOC"]] %>% 
   filter(compartment %in% l) %>%
   group_by(scenario, population, compartment) %>% 
@@ -30,12 +49,46 @@ res_baseline[["res_3_VOC"]] %>%
                         scenario == "A5" ~ 20,
                         scenario == "B1" ~ 25,
                         scenario == "B2" ~ 50),
-         wb = countrycode(population, "country.name", "wb")) %>% 
+         wb = countrycode(population, "country.name", "wb")) -> tmp 
   group_by(wb) %>% 
   mutate(rk = rank(relative)) %>% 
   dplyr::select(wb, relative, rk) %>% 
   pivot_wider(names_from = rk, values_from = relative) %>% 
   mutate(diff = abs(`1`-`2`)) %>% pull(diff) %>% range
+
+tmp  %>%
+  filter(wb %in% euro_inuse) %>% 
+  group_by(population) %>% 
+  filter(scenario == "B2")
+  mutate(rk = rank(relative)) %>% 
+  filter(rk == 1)
+  
+res_sw$res_3_sw %>% 
+    mutate(iso3c = countrycode(population, "country.name", "iso3c")) %>% 
+    filter(compartment %in% l,
+           iso3c %in% euro_inuse) %>%
+    group_by(scenario, population, compartment) %>% 
+    summarise(value = sum(value)) %>% 
+    pivot_wider(names_from = scenario, values_from = value) %>% 
+    mutate(B1 = `7`,
+           A1 = `1`) %>% 
+    pivot_longer(cols = as.character(c(1:7)),
+                 names_to = "scenario",
+                 values_to = "value") %>% 
+    mutate(relative = value/B1 - 1,
+           scenario = factor(scenario, 
+                             levels = c(1:5,7,6), 
+                             labels = strategy_labels),
+           di = case_when(scenario == "A1" ~ 4,
+                          scenario == "A2" ~ 8,
+                          scenario == "A3" ~ 12,
+                          scenario == "A4" ~ 16,
+                          scenario == "A5" ~ 20,
+                          scenario == "B1" ~ 25,
+                          scenario == "B2" ~ 50),
+           wb = countrycode(population, "country.name", "wb")) %>% 
+  group_by(population) %>% mutate(rk = rank(relative)) %>% filter(rk == 1) %>% pull(scenario) %>% table
+
 
 cm_populations %>% 
   filter(location_type == 4) %>% 
@@ -102,4 +155,26 @@ tmp %>%
   geom_tile() +
   facet_grid(ve_d_o ~ v2e_d_o) +
   scale_fill_distiller(palette = "Spectral")
+
+all <- list()
+for(i in which(model_selected_ur$iso3c %in% euro_inuse)){
+  n <- model_selected_ur$country_name[i]
+  cm_matrices[[n]][[1]] + cm_matrices[[n]][[2]] + cm_matrices[[n]][[3]] + cm_matrices[[n]][[4]]  -> all[[n]]
+}
+
+
+p_list <- list()
+for(i in 1:length(all)){
+  (all$`Bosnia and Herzegovina` - all[[i]]) %>%
+    set_colnames(ag_labels) %>% 
+    set_rownames(ag_labels) %>% 
+    as.data.frame %>% 
+    rownames_to_column(var = "V1") %>% 
+    pivot_longer(cols = ag_labels) %>% 
+    mutate(V1 = factor(V1, levels = ag_labels, labels = 1:16) %>% as.numeric,
+           name = factor(name, levels = ag_labels, labels = 1:16) %>% as.numeric) %>% 
+    ggplot(., aes(x = V1, y = name, fill = value)) +
+    geom_tile() -> p_list[[i]]
+}
+do.call("grid.arrange", c(p_list, ncol=4))
 
