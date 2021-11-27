@@ -1,29 +1,30 @@
-params_2$daily_vac_scenarios %>%
-  bind_rows(.id = "ROS") %>% 
-  dplyr::select(-c(supply_cum, supply_daily, supply, supply_2, phase)) %>%   
-  pivot_longer(cols = starts_with("Y", ignore.case = T)) %>% 
-  separate(name, into = c("ag", "dose")) %>% 
-  filter(value != 0) %>% 
-  mutate(ag = factor(ag, 
-                     levels = paste0("Y", 1:16),
-                     labels = params$pop[[1]]$group_names),
-         ROS = factor(ROS,
-                      levels = 1:3,
-                      labels = paste0("Roll out strategy: ",1:3)),
-         dose = factor(dose,
-                       levels = c("d1", "d2"),
-                       labels = c("1st dose",
-                                  "2nd dose"))
-         ) %>% 
-  ggplot(., aes(x = date, y = ag, color = dose)) +
-  geom_point() +
-  labs(x = "", y = "Age Group", color = "") +
-  facet_wrap(~ROS, ncol = 1) +
-  ggsci::scale_color_lancet() +
-  theme_bw() +
-  theme(strip.text = element_text(size = 12)) -> p
-
-ggsave("figs/ROS.png", p, height = 9, width = 16)
+# # params_2$daily_vac_scenarios %>%
+# lapply(1:7, function(x) params_2_vp[[1]]$scenarios[[x]]$daily_vac_scenarios) %>% 
+#   bind_rows(.id = "ROS") %>% 
+#   dplyr::select(-c(supply_cum, supply_daily, supply, supply_2, phase)) %>%   
+#   pivot_longer(cols = starts_with("Y", ignore.case = T)) %>% 
+#   separate(name, into = c("ag", "dose")) %>% 
+#   filter(value != 0) %>% 
+#   mutate(ag = factor(ag, 
+#                      levels = paste0("Y", 1:16),
+#                      labels = params$pop[[1]]$group_names),
+#          ROS = factor(ROS,
+#                       levels = 1:3,
+#                       labels = paste0("Roll out strategy: ",1:3)),
+#          dose = factor(dose,
+#                        levels = c("d1", "d2"),
+#                        labels = c("1st dose",
+#                                   "2nd dose"))
+#          ) %>% 
+#   ggplot(., aes(x = date, y = ag, color = dose)) +
+#   geom_point() +
+#   labs(x = "", y = "Age Group", color = "") +
+#   facet_wrap(~ROS, ncol = 1) +
+#   ggsci::scale_color_lancet() +
+#   theme_bw() +
+#   theme(strip.text = element_text(size = 12)) -> p
+# 
+# ggsave("figs/ROS.png", p, height = 9, width = 16)
 
 tmp %>% 
   pivot_longer(cols = starts_with("uv"),
