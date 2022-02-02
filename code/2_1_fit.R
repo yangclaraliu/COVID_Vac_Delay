@@ -38,8 +38,8 @@ fit_func_3 <- function(input){
 out_3 <-  list()
 cal_start <- "2019-12-01"
 
-for(i in 18:length(fit_yet)){
-  
+# for(i in 18:length(fit_yet)){
+for(i in 13){
   cn <- fit_yet[i]
   iso3c_tmp <- countrycode(cn, "country.name","iso3c")
   data_tmp <- owid_epi[iso3c == iso3c_tmp] %>% .[order(date)] %>% .[date <= "2021-03-01"]
@@ -107,14 +107,12 @@ for(i in 18:length(fit_yet)){
   rm(cn)
 }
 
-lapply(lapply(out_3, "[[", "member"), "[[", "bestmemit") %>%
-  map(tail, 1) %>%
-  map(data.frame) %>%
-  bind_rows(., .id = "country_index") %>%
-  left_join(data.frame(iso3c = euro_lmic) %>% 
-              filter(iso3c != "XKX") %>% 
-              rownames_to_column(var = "country_index"), 
-            by = "country_index") %>%
+lapply(lapply(out_3, "[[", "optim"), "[[", "bestmem") %>%
+  setNames(fit_yet) %>% 
+  bind_rows(., .id = "country_name") %>%
+  mutate(iso3c = countrycode::countrycode(country_name, 
+                                          "country.name",
+                                          "iso3c")) %>% 
   rename(t = par1, r = par2, ur = par3) %>%
   mutate(t = round(t),
          date = ymd("2020-12-01") + t) %>%

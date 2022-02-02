@@ -47,4 +47,7 @@ vignettes/*.pdf
 /data/intermediate/params_vp_18.rdata
 /data/intermediate/SA_VE.rds
 /data/intermediate/SA_VE_360.rds
+/data/intermediate/SA_VE_360_VOC.rds
 /data/intermediate/params_3_vp_18.rdata
+/data/intermediate/SA_VE_120.rds
+/data/intermediate/SA_VE_120_VOC.rds

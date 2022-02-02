@@ -461,18 +461,20 @@ ve_new[ve_i == 0.65 & ve_d == 0 & v2e_d == 0] %>%
   select(ve_set) %>% mutate(scenarios = c(NA, 1:5,7,6)) %>% 
   filter(!is.na(scenarios)) -> profiles
 
-SA_VE_120 <- read_rds(paste0(path_dropbox,"intermediate/SA_VE_120.rds"))
-SA_VE_VOC_120 <- read_rds(paste0(path_dropbox,"intermediate/SA_VE_120_VOC.rds"))
-
-SA_VE_360 <- read_rds(paste0(path_dropbox,"intermediate/SA_VE_360.rds"))
-SA_VE_VOC_360 <- read_rds(paste0(path_dropbox,"intermediate/SA_VE_360_VOC.rds"))
+# SA_VE_120 <- read_rds(paste0(path_dropbox,"intermediate/SA_VE_120.rds"))
+# SA_VE_VOC_120 <- read_rds(paste0(path_dropbox,"intermediate/SA_VE_120_VOC.rds"))
+# 
+# SA_VE_360 <- read_rds(paste0(path_dropbox,"intermediate/SA_VE_360.rds"))
+# SA_VE_VOC_360 <- read_rds(paste0(path_dropbox,"intermediate/SA_VE_360_VOC.rds"))
 
 SA_VE_360 %>% 
-  map(filter, !grepl("voc", compartment),
-      ve_set %in% profiles$ve_set,
-      compartment == "death_o") %>% 
-  map(group_by, ve_set, scenarios, population, compartment) %>% 
-  map(summarise, value = sum(V1)) %>% bind_rows() %>% 
+  bind_rows() %>% 
+  filter(!grepl("voc", compartment),
+         ve_set %in% profiles$ve_set,
+         compartment == "death_o"
+         ) %>% 
+  group_by(ve_set, scenarios, population, compartment) %>% 
+  summarise(value = sum(V1)) %>% 
   mutate(scenarios = factor(scenarios, levels = c(1:5,7,6))) %>% 
   filter((ve_set == profiles$ve_set[1] & scenarios == profiles$scenarios[1]) |
            (ve_set == profiles$ve_set[2] & scenarios == profiles$scenarios[2]) |
@@ -492,7 +494,7 @@ SA_VE_360 %>%
                             levels = c(1:5,7,6),
                             labels = strategy_labels)) -> tmp
 
-res_baseline[["res_3"]] %>% 
+res_baseline_v3[["res_3"]] %>% 
   filter(compartment %in% c("death", "death_o")) %>%
   group_by(scenario, population, compartment) %>% 
   summarise(value = sum(value)) %>% 
@@ -520,7 +522,7 @@ res_baseline[["res_3"]] %>%
   geom_vline(xintercept = 6, linetype = 2) +
   geom_hline(yintercept = 0, linetype = 2 ) +
   scale_y_continuous(breaks = c(0,0.15,0.3),
-                     # limits = c(0,0.3),
+                     limits = c(0,0.5),
                      labels = c("0%","15%","30%")) +
   theme_cowplot() +
   theme(axis.title = element_text(size = 16),
@@ -533,7 +535,7 @@ res_baseline[["res_3"]] %>%
        #  title = "Relative Differences in Cumulative Outcome Compared to B1",
        y = "%Differences Compared to B1") -> p2
 
-SA_VE_VOC_360 %>% 
+SA_VE_360_VOC %>% 
   bind_rows() %>% 
   filter(grepl("death", compartment)) %>% 
   filter(!(compartment == "hosp_voc_i" & VOC == F)) %>% 
@@ -561,9 +563,9 @@ SA_VE_VOC_360 %>%
                             levels = c(1:5,7,6),
                             labels = strategy_labels)) -> tmp
 
-res_baseline[["res_3_VOC"]] %>% 
+res_baseline_v3[["res_3_VOC"]] %>% 
   filter(compartment %in% c("death", "death_o"),
-         population %in% model_selected_ur) %>%
+         population %in% model_selected_ur$country_name) %>%
   group_by(scenario, population, compartment) %>% 
   summarise(value = sum(value)) %>% 
   pivot_wider(names_from = scenario, values_from = value) %>% 
@@ -589,6 +591,7 @@ res_baseline[["res_3_VOC"]] %>%
                                        "Dosing-interval Sensitive VE")) +
   geom_vline(xintercept = 6, linetype = 2) +
   scale_y_continuous(breaks = seq(0,0.45,0.15),
+                     limits = c(-0.05, 0.5),
                      labels = c("0%","15%","30%","45%")) +
   geom_hline(yintercept = 0, linetype = 2 ) +
   theme_cowplot() +

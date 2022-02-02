@@ -39,37 +39,36 @@ for(i in seq_len(nrow(model_selected_ur))){
   params_3_VOC[[i]] %<>% add_vac_VOC(.)
 }
 
-params_3_VOC_vp <- list()
-load(paste0("data/intermediate/params_3_vp_18.rdata"))
-n_scenario <- length(params_3_vp[[1]]$res)
 
-for(i in 1:nrow(model_selected_ur)) {
-  params_3_VOC_vp[[i]] <- list()
-  params_3_VOC_vp[[i]][["param"]] <- params_3_VOC[[i]]
-  params_3_VOC_vp[[i]][["res"]] <- list()
-  for(j in 1:n_scenario){
-    # main body is from @params_2_VOC created above, which doesn't include vaccine roll-out schedule
-    params_3_VOC_vp[[i]][["res"]][[j]] <-  params_3_VOC[[i]]
-    # the vaccine roll-out schedule follows the corresponding countries in params_2_vp
-    params_3_VOC_vp[[i]][["res"]][[j]]$schedule[["v"]] <- params_3_vp[[i]]$res[[j]]$schedule[["v"]]
-    params_3_VOC_vp[[i]][["res"]][[j]]$schedule[["v2"]] <- params_3_vp[[i]]$res[[j]]$schedule[["v2"]]
-  }
-  params_3_VOC_vp[[i]][["scenarios"]] <- params_3_vp[[i]]$scenarios
-}
+# # load(paste0("data/intermediate/params_3_vp_18.rdata"))
+# n_scenario <- length(params_3_vp[[1]]$res)
+# 
+# for(i in 1:nrow(model_selected_ur)) {
+#   params_3_VOC_vp[[i]] <- list()
+#   params_3_VOC_vp[[i]][["param"]] <- params_3_VOC[[i]]
+#   params_3_VOC_vp[[i]][["res"]] <- list()
+#   for(j in 1:n_scenario){
+#     # main body is from @params_2_VOC created above, which doesn't include vaccine roll-out schedule
+#     params_3_VOC_vp[[i]][["res"]][[j]] <-  params_3_VOC[[i]]
+#     # the vaccine roll-out schedule follows the corresponding countries in params_2_vp
+#     params_3_VOC_vp[[i]][["res"]][[j]]$schedule[["v"]] <- params_3_vp[[i]]$res[[j]]$schedule[["v"]]
+#     params_3_VOC_vp[[i]][["res"]][[j]]$schedule[["v2"]] <- params_3_vp[[i]]$res[[j]]$schedule[["v2"]]
+#   }
+#   params_3_VOC_vp[[i]][["scenarios"]] <- params_3_vp[[i]]$scenarios
+# }
 
-save(params_3_vp, params_3_VOC_vp, file = paste0("data/intermediate/params_vp_18.rdata"))
+# save(params_3_vp, params_3_VOC_vp, file = paste0("data/intermediate/params_vp_18.rdata"))
 
-add_vp <- function(params){
+add_vp <- function(params,
+                   ms_cov = c(0,0.03,0.2,0.5),
+                   delay = 24){
   res <- vac_policy(params,
                     # these two parameters define the supply conditions
                     milestone_date = c("2021-03-01", # start from 0
                                        "2021-06-30", # 0.03
                                        "2021-12-31", # all population; 0.2
                                        "2022-12-31"), # 0.6
-                    milestone_cov = c(0,
-                                      0.03,
-                                      0.2,
-                                      0.5),
+                    milestone_cov = ms_cov,
                     # prioritisation, assume 60+  all prioritised
                     priority = c(NA, NA, NA, NA,
                                  2,  2,  2,  2,
@@ -79,15 +78,17 @@ add_vp <- function(params){
                     cov_max = c(rep(0,4),
                                 rep(0.7, 8),
                                 rep(0.9, 4)),
-                    supply_delay = 24, # unit = weeks
+                    supply_delay = delay, # unit = weeks
                     dose_interval = c(4, 8, 12, 16, 20))
   return(res);rm(res)
 }
+# i = 10 not working
+params_3_vp <- list()
+# for(i in 11:nrow(model_selected_ur)){
+# for(i in 16:18){
 
-# for(i in 1:nrow(model_selected_ur)){
-
-for(i in 16:18){
-  params_3_vp[[i]] <- add_vp(params_3[[i]])
+  params_3_vp[[i]] <- add_vp(params_3_VOC[[i]],
+                             ms_cov = c(0, 0.01, 0.05, 0.1))
   print(round(i*100/nrow(model_selected_ur),0))
   # params_2_VOC_vp[[i]] <- add_vp(params_2_VOC[[i]])
   # params_3_vp[[i]] <- add_vp(params_3[[i]])

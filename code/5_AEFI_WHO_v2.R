@@ -32,9 +32,11 @@ res_baseline2 = lapply(1:length(res_baseline), function(x) {
                             ifelse(scenario == 6, "B2",
                             ifelse(scenario == 7, "B1",
                                    NA))))))),
-                 strategy = factor(strategy, levels = levels(FGS_VacAllocated$strategy) ))
+                 strategy = factor(strategy, levels = levels(FGS_VacAllocated$strategy) )) %>% 
+    mutate(iso3c = countrycode(population, "country.name", "iso3c")) %>% 
+    filter(iso3c %in% euro_inuse)
   
-  })
+  }) 
 
 # change list names back
 names(res_baseline2) = names(res_baseline)
@@ -143,8 +145,6 @@ res_baseline %>%
 ggsave(paste0("Fig9_", format(Sys.time(), "%d%b%Y"), 
               "_v1b.png"), path = "figs/supplemental/", 
        width = 40, height = 40, units = "cm")
-
-
 
 # total deaths, and different visuatlisation (not used)
 
@@ -359,7 +359,8 @@ p2 / p3 +
 # figure 8 in the report
 
 # plot ratios with VOC
-p1 = plot_res_AEFI_incr %>% 
+# p1 = 
+plot_res_AEFI_incr %>% 
   rename("LEdisc_AEFI"      = "LEdisc",
          "adjQALEdisc_AEFI" = "adjQALEdisc") %>%
   full_join( plot_res_mort_incr %>% 
@@ -371,6 +372,8 @@ p1 = plot_res_AEFI_incr %>%
          adjQALEdiscRatio = ifelse(adjQALEdisc_AEFI == 0, 0, adjQALEdisc/adjQALEdisc_AEFI)) %>%  #/doses_ttl*1000) 
   # only look at non-VOC; results only magnified
   dplyr::filter(.id == "res_3_VOC") %>%
+  filter(AEFImort_nrRatio < 0 | AEFImort_nrRatio < 0 | LEdiscRatio < 0 | adjQALEdiscRatio < 0)
+  
   
   ggplot(aes(x=strategy, y=AEFImort_nrRatio)) + 
   geom_boxplot(outlier.shape = NA) +
@@ -391,7 +394,8 @@ p1 = plot_res_AEFI_incr %>%
             aes(x=xpos,y=ypos,hjust=hjustvar,vjust=vjustvar,label=annotateText))
 
 # plot ratios without VOC
-p2 = plot_res_AEFI_incr %>% 
+# p2 = 
+  plot_res_AEFI_incr %>% 
   rename("LEdisc_AEFI"      = "LEdisc",
          "adjQALEdisc_AEFI" = "adjQALEdisc") %>%
   full_join( plot_res_mort_incr %>% 
@@ -403,6 +407,7 @@ p2 = plot_res_AEFI_incr %>%
          adjQALEdiscRatio = ifelse(adjQALEdisc_AEFI == 0, 0, adjQALEdisc/adjQALEdisc_AEFI)) %>%  #/doses_ttl*1000) 
   # only look at non-VOC; results only magnified
   dplyr::filter(.id == "res_3") %>%
+  filter(AEFImort_nrRatio < 0 | AEFImort_nrRatio < 0 | LEdiscRatio < 0 | adjQALEdiscRatio < 0)
   
   ggplot(aes(x=strategy, y=AEFImort_nrRatio)) + 
   geom_boxplot(outlier.shape = NA) +

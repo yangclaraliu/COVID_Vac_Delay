@@ -23,8 +23,10 @@ n_country <- which(model_selected_ur$iso3c %in% euro_inuse)
 pb <- progress_bar$new(total = n_vac*nrow(model_selected_ur))
 res_3_ve <- res_3_VOC_ve <- list()
 for(i in n_country){
+# for(i in 1){
   res_3_ve[[i]] <- res_3_VOC_ve[[i]] <- list()
   for(j in 1:n_vac){
+  # for(j in 1){
     params_3_vp[[i]]$res %>% 
       map(~update_vac_char(.,
                            ve_i   = ve_new$ve_i[j],  
