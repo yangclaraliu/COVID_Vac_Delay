@@ -32,7 +32,7 @@ strategy_labels <- c(paste0("A",1:5),paste0("B", c(1,2)))
 # ggsave("figs/supplemental/observed_coverage.png")
 
 #### Figures ####
-lapply(1:18, function(y) {
+lapply(1:13, function(y) {
   lapply(c(1:7), function(x) params_3_vp[[y]]$scenarios[[x]]$daily_vac_scenarios) %>% 
     setNames(c(1:7)) %>% bind_rows(.id = "strategy") %>% 
     mutate(iso3c = model_selected_ur$iso3c[[y]],
@@ -99,6 +99,8 @@ tmp %>%
   geom_line(aes(y = supply, linetype = "Dose 1"), size = 1.5) +
   geom_line(aes(y = supply_2, linetype = "Dose 2"), size = 1.5) +
   scale_linetype_manual(values = c(2,3)) +
+  scale_x_continuous(breaks = ymd(c("2021-01-01", "2022-01-01")),
+                     labels = c(2021, 2022)) +
   facet_wrap(~strategy) +
   ggsci::scale_color_lancet() +
   cowplot::theme_cowplot() +
@@ -210,7 +212,7 @@ p6 <- plot_grid(p4,
                 rel_widths = c(1,1.5))
 
 ggsave("figs/fig2.png", p6, height = 10, width = 18)
-
+ 
 #### vaccine supply curves ####
 # params_2_vp[[1]]$scenarios[[i]]$daily_vac_scenarios %>% 
 #   mutate(t = as.numeric(t)) %>% 
@@ -226,7 +228,7 @@ ggsave("figs/fig2.png", p6, height = 10, width = 18)
 #   theme(title = element_text(size = 14)) 
 
 #### effective dosing interval ####
-lapply(1:18, function(x){
+lapply(1:13, function(x){
   lapply(params_3_vp[[x]]$scenarios, "[[", "pending") %>% 
     bind_rows(.id = "scenario") %>%
     pivot_longer(cols = starts_with("Y")) %>% 
@@ -236,7 +238,7 @@ lapply(1:18, function(x){
 }) -> tmp
 
 tmp_unroll <- list()
-for(j in 1:nrow(model_selected_ur)){
+for(j in 1:length(params_3_vp)){
   sapply(1:length(tmp[[j]]), function(y){
     sapply(1:nrow(tmp[[j]][[y]]), 
            function(x) rep(tmp[[j]][[y]]$elapse[x], tmp[[j]][[y]]$value[x]/1000)) 
@@ -328,10 +330,11 @@ tmp %>%
 #     wow, this is really good code please use it
 
 
-ggsave("figs/fig3.png", p, height = 8, width = 12)
+ggsave("figs/fig3_new.png", p, height = 8, width = 12)
 
 #### baseline results ####
-res_baseline <- read_rds(paste0("data/intermediate/res_baseline_v3.rds"))
+# update to `res_baseline_v4.rds` on 2022/02/03 upon R1
+res_baseline <- read_rds(paste0("data/intermediate/res_baseline_v4.rds"))
 outcome_by_strategy <- function(res_list, tab_name, outcome){
   if(outcome == "death") {l <- c("death", "death_o"); st = ""}
   if(outcome == "hosp") {l <- c("hosp", "hosp_i"); st = ""}
@@ -418,12 +421,12 @@ res_baseline[["res_3"]] %>%
   # filter(scenario == 1) %>% pull(relative) %>% summary
   filter(scenario %in% c(3:5)) %>% group_by(scenario) %>% group_split() %>% map(pull, relative) %>% map(summary)
 
-# ggsave("figs/res_3_baseline.png", p, width = 10, height = 14)
+# ggsave("figs/res_3_baseline_R1.png", p, width = 10, height = 14)
 
 
 #### shorter waning ####
-# res_sw <- read_rds(paste0(path_dropbox,"intermediate/res_sw_v3.rds"))#
-res_sw <- read_rds("data/intermediate/res_sw_v3.rds")
+# update to `res_sw_v4.rds` on 2022/02/03 upon R1
+res_sw <- read_rds("data/intermediate/res_sw_v4.rds")
 p4 <- outcome_by_strategy(res_sw, "res_3_sw", "death")
 p5 <- outcome_by_strategy(res_sw, "res_3_VOC_sw", "death")
 title <- ggdraw() + draw_label("Relative Differences in Cumulative COVID-19 Mortality Compared to B1\nwv = 120 days",
@@ -438,7 +441,8 @@ plot_grid(p2 + labs(subtitle = "w/ VOC\n1st dose wane at 360 days"),
           labels = c("(a)","(b)","(c)","(d)"),
           nrow = 2, byrow =T) -> p7
 
-ggsave("figs/fig4_v3.png", p7, width = 12, height = 9)
+# update to `fig4_v4.png` on 2022/02/03 upon R1
+ggsave("figs/fig4_v4.png", p7, width = 12, height = 9)
 
 res_sw[["res_3_sw"]] %>% 
   filter(compartment %in% c("death", "death_o")) %>%

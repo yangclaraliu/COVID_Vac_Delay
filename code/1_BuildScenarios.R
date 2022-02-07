@@ -78,83 +78,79 @@ add_vp <- function(params,
                     cov_max = c(rep(0,4),
                                 rep(0.7, 8),
                                 rep(0.9, 4)),
-                    supply_delay = delay, # unit = weeks
+                    supply_delay = as.numeric(delay), # unit = weeks
                     dose_interval = c(4, 8, 12, 16, 20))
   return(res);rm(res)
 }
-# i = 10 not working
-params_3_vp <- list()
-# for(i in 11:nrow(model_selected_ur)){
-# for(i in 16:18){
 
-  params_3_vp[[i]] <- add_vp(params_3_VOC[[i]],
-                             ms_cov = c(0, 0.01, 0.05, 0.1))
-  print(round(i*100/nrow(model_selected_ur),0))
-  # params_2_VOC_vp[[i]] <- add_vp(params_2_VOC[[i]])
-  # params_3_vp[[i]] <- add_vp(params_3[[i]])
-  # params_3_VOC_vp[[i]] <- add_vp(params_3_VOC[[i]])
-
-  save(params_3_vp,
-       file = "data/intermediate/params_3_vp_18.rdata")
-
+params_3_vp <-  params_3_VOC_vp <- list()
+for(i in 1:length(euro_inuse)){
+  which(model_selected_ur$iso3c ==   euro_inuse[i]) -> j
+  params_3_vp[[i]] <- add_vp(params_3[[j]])
+  params_3_VOC_vp[[i]] <- add_vp(params_3_VOC[[j]])
+  print(round(i*100/length(euro_inuse),0))
+  save(params_3_vp, params_3_VOC_vp,
+       file = "data/intermediate/params_3_vp_delay.rdata") #this means immune delay
 }
+
 
 # sanity check
-lapply(1:18, function(y){
-  lapply(1:7, function(x){
-    params_3_vp[[y]]$scenarios[[x]]$daily_vac_scenarios %>%
-      dplyr::select(t, starts_with("Y", ignore.case = F)) %>%
-      pivot_longer(starts_with("Y", ignore.case = F)) %>%
-      filter(value < 0)
-  })
-})
+# lapply(1:18, function(y){
+# lapply(1:13, function(y){
+#   lapply(1:7, function(x){
+#     params_3_vp[[y]]$scenarios[[x]]$daily_vac_scenarios %>%
+#       dplyr::select(t, starts_with("Y", ignore.case = F)) %>%
+#       pivot_longer(starts_with("Y", ignore.case = F)) %>%
+#       filter(value < 0)
+#   })
+# })
 
 
-for(i in 1:18){
-  lapply(params_3_vp[[i]]$res,"[[","schedule") %>% lapply(., "[[", "v") %>% 
-    lapply(., "[[","values") %>% unlist %>% .[.<0] %>% print
-  lapply(params_3_vp[[i]]$res,"[[","schedule") %>% lapply(., "[[", "v2") %>% 
-    lapply(., "[[","values") %>% unlist %>% .[.<0] %>% print
-}
-
-for(i in 1:18){
-  lapply(params_3_vp[[i]]$scenarios, "[[", "daily_vac_scenarios") %>%
-    map(mutate_at, vars(starts_with("Y", ignore.case = F)), cumsum) %>%
-    bind_rows(.id = "scenarios") %>%
-    dplyr::select(-starts_with("supply"), -phase, -t) %>%
-    pivot_longer(cols = starts_with("Y")) %>%
-    separate(name, into = c("ag","dose")) %>%
-    group_by(date, scenarios, dose)  -> tmp
-
-  tmp %>%
-    # filter(date >= "2021-03-01") %>%
-    ggplot(., aes(x = date, y = value, group = interaction(ag, dose), color = dose)) +
-    geom_line() +
-    facet_wrap(~scenarios) +
-    theme_bw() +
-    labs(title = model_selected_ur$country_name[i]) -> tmp_p
-
-  ggsave(paste0("figs/intermediate/ROS_ag/",
-                model_selected_ur$country_name[i],
-                ".png"),
-         plot = tmp_p,
-         width = 15, height = 10)
-
-  tmp %>%
-    summarise(value = sum(value))%>%
-    # filter(date >= "2021-03-01") %>%
-    ggplot(., aes(x = date, y = value, group = interaction(dose), color = dose)) +
-    geom_line() +
-    facet_wrap(~scenarios) +
-    theme_bw() +
-    labs(title = model_selected_ur$country_name[i]) -> tmp_p
-
-  ggsave(paste0("figs/intermediate/ROS/",
-                model_selected_ur$country_name[i],
-                ".png"),
-         plot = tmp_p,
-         width = 15, height = 10)
-
-}
+# for(i in 1:13){
+#   lapply(params_3_vp[[i]]$res,"[[","schedule") %>% lapply(., "[[", "v") %>% 
+#     lapply(., "[[","values") %>% unlist %>% .[.<0] %>% print
+#   lapply(params_3_vp[[i]]$res,"[[","schedule") %>% lapply(., "[[", "v2") %>% 
+#     lapply(., "[[","values") %>% unlist %>% .[.<0] %>% print
+# }
+# 
+# for(i in 1:13){
+#   lapply(params_3_vp[[i]]$scenarios, "[[", "daily_vac_scenarios") %>%
+#     map(mutate_at, vars(starts_with("Y", ignore.case = F)), cumsum) %>%
+#     bind_rows(.id = "scenarios") %>%
+#     dplyr::select(-starts_with("supply"), -phase, -t) %>%
+#     pivot_longer(cols = starts_with("Y")) %>%
+#     separate(name, into = c("ag","dose")) %>%
+#     group_by(date, scenarios, dose)  -> tmp
+# 
+#   tmp %>%
+#     # filter(date >= "2021-03-01") %>%
+#     ggplot(., aes(x = date, y = value, group = interaction(ag, dose), color = dose)) +
+#     geom_line() +
+#     facet_wrap(~scenarios) +
+#     theme_bw() +
+#     labs(title = model_selected_ur$country_name[i]) -> tmp_p
+# 
+#   ggsave(paste0("figs/intermediate/ROS_ag/",
+#                 model_selected_ur$country_name[i],
+#                 ".png"),
+#          plot = tmp_p,
+#          width = 15, height = 10)
+# 
+#   tmp %>%
+#     summarise(value = sum(value))%>%
+#     # filter(date >= "2021-03-01") %>%
+#     ggplot(., aes(x = date, y = value, group = interaction(dose), color = dose)) +
+#     geom_line() +
+#     facet_wrap(~scenarios) +
+#     theme_bw() +
+#     labs(title = model_selected_ur$country_name[i]) -> tmp_p
+# 
+#   ggsave(paste0("figs/intermediate/ROS/",
+#                 model_selected_ur$country_name[i],
+#                 ".png"),
+#          plot = tmp_p,
+#          width = 15, height = 10)
+# 
+# }
 
   

@@ -32,6 +32,7 @@ members_remove <- read_rds(paste0(path_dropbox,
 euro_lmic <- c("ALB","ARM","AZE","BLR","BIH","BGR","GEO","KAZ","XKX","KGZ",
                "MDA","MNE","MKD","RUS","SRB","TJK","TUR","TKM","UKR","UZB")
 euro_inuse <- setdiff(euro_lmic, members_remove)
+euro_inuse <- euro_inuse[euro_inuse!= "XKX"]
 
 # updated contact matrices
 load(paste0(path_dropbox, "contact_all.rdata"))

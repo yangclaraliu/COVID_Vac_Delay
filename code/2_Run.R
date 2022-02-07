@@ -1,8 +1,10 @@
+# res_3 <- 
 res_3 <- res_3_VOC <- list()
 n_scenario <- params_3_vp[[1]]$res %>% length
 
-pb <- progress::progress_bar$new(total = nrow(model_selected_ur))
-for(i in 1:nrow(model_selected_ur)){
+pb <- progress::progress_bar$new(total = length(params_3_vp))
+
+for(i in 1:length(params_3_vp)){
   pb$tick()
   # res_2[[i]] <- lapply(1:n_scenario, function(x) cm_simulate(params_2_vp[[i]]$res[[x]]))
   # res_2[[i]]  <- lapply(res_2[[i]], "[[" ,"dynamics") %>% 
@@ -17,7 +19,7 @@ for(i in 1:nrow(model_selected_ur)){
   #   bind_rows(.id = "scenario")
   
   res_3_VOC[[i]] <- lapply(1:n_scenario, function(x) cm_simulate(params_3_VOC_vp[[i]]$res[[x]]))
-  res_3_VOC[[i]]  <- lapply(res_3_VOC[[i]], "[[" ,"dynamics") %>% 
+  res_3_VOC[[i]]  <- lapply(res_3_VOC[[i]], "[[" ,"dynamics") %>%
     bind_rows(.id = "scenario")
 }
 
@@ -99,7 +101,7 @@ dyna[["res_3"]] <- sum_endpoints(res_3)
 dyna[["res_3_VOC"]] <- sum_endpoints(res_3_VOC, ds = "2021-04-15")
 
 # rm(res_2, res_3, res_2_VOC, res_3_VOC)
-write_rds(dyna, "data/intermediate/res_baseline_v3.rds")
+write_rds(dyna, "data/intermediate/res_baseline_v4.rds")
 
 #### shorter immunity duration ####
 pb <- progress::progress_bar$new(total = nrow(model_selected_ur))
@@ -109,7 +111,7 @@ params_3_vp_sw <- params_3_vp
 # params_2_VOC_vp_sw <- params_2_VOC_vp
 params_3_VOC_vp_sw <- params_3_VOC_vp
 
-for(j in 1:nrow(model_selected_ur)){
+for(j in 1:length(euro_inuse)){
   for(i in 1:n_scenario){
     # params_2_vp_sw[[j]]$res[[i]]$pop[[1]]$wv <- rep(1/120, 16)
     params_3_vp_sw[[j]]$res[[i]]$pop[[1]]$wv <- rep(1/120, 16)
@@ -118,10 +120,30 @@ for(j in 1:nrow(model_selected_ur)){
   }
 }
 
-res_3_sw <- res_3_VOC_sw <-  list()
+params_3_vp_R1 <- params_3_VOC_vp_R1 <- list()
+params_3_vp_R1[[1]] <- params_3_vp_R1[[2]] <- params_3_vp
+params_3_VOC_vp_R1[[1]] <- params_3_VOC_vp_R1[[2]] <- params_3_VOC_vp
+additional_wv <- c(60, 90)
 
-pb <- progress::progress_bar$new(total = nrow(model_selected_ur))
-for(i in 1:nrow(model_selected_ur)){
+for(m in 1:length(additional_wv)){
+  for(j in 1:length(euro_inuse)){
+    for(i in 1:n_scenario){
+      # params_2_vp_sw[[j]]$res[[i]]$pop[[1]]$wv <- rep(1/120, 16)
+      params_3_vp_R1[[m]][[j]]$res[[i]]$pop[[1]]$wv <- rep(1/additional_wv[m], 16)
+      # params_2_VOC_vp_sw[[j]]$res[[i]]$pop[[1]]$wv <- rep(1/120, 16)
+      params_3_VOC_vp_R1[[m]][[j]]$res[[i]]$pop[[1]]$wv <- rep(1/additional_wv[m], 16)
+    }
+  }
+}
+
+res_3_sw <- res_3_VOC_sw <-  list()
+res_3_sw_R1 <- res_3_VOC_sw_R1 <-  list()
+res_3_sw_R1[[1]] <- res_3_sw_R1[[2]] <- list()
+res_3_VOC_sw_R1[[1]] <- res_3_VOC_sw_R1[[2]] <- list()
+
+pb <- progress::progress_bar$new(total = length(euro_inuse))
+
+for(i in 1:length(euro_inuse)){
   pb$tick()
   
   res_3_sw[[i]] <- lapply(1:n_scenario, function(x) cm_simulate(params_3_vp_sw[[i]]$res[[x]]))
@@ -138,4 +160,27 @@ dyna_sw[["res_3_sw"]] <- sum_endpoints(res_3_sw)
 dyna_sw[["res_3_VOC_sw"]] <- sum_endpoints(res_3_VOC_sw, ds = "2021-04-15")
 
 # rm(res_2_sw, res_3_sw, res_2_VOC_sw, res_3_VOC_sw)
-write_rds(dyna_sw, paste0("data/intermediate/res_sw_v3.rds"))
+write_rds(dyna_sw, paste0("data/intermediate/res_sw_v4.rds"))
+
+# sensitivity analysis during R1
+for(m in 1:length(additional_wv)){
+  for(i in 1:length(euro_inuse)){
+    
+    res_3_sw_R1[[m]][[i]] <- lapply(1:n_scenario, function(x) cm_simulate(params_3_vp_R1[[m]][[i]]$res[[x]]))
+    res_3_sw_R1[[m]][[i]]  <- lapply(res_3_sw_R1[[m]][[i]], "[[" ,"dynamics") %>% 
+      bind_rows(.id = "scenario")
+    
+    res_3_VOC_sw_R1[[m]][[i]] <- lapply(1:n_scenario, function(x) cm_simulate(params_3_VOC_vp_R1[[m]][[i]]$res[[x]]))
+    res_3_VOC_sw_R1[[m]][[i]]  <- lapply(res_3_VOC_sw_R1[[m]][[i]], "[[" ,"dynamics") %>% 
+      bind_rows(.id = "scenario")
+  }
+}
+
+dyna_sw_R1 <- dyna_VOC_sw_R1 <- list()
+dyna_sw_R1[[1]] <- sum_endpoints(res_3_sw_R1[[1]])
+dyna_sw_R1[[2]] <- sum_endpoints(res_3_sw_R1[[2]])
+dyna_VOC_sw_R1[[1]] <- sum_endpoints(res_3_VOC_sw_R1[[1]], ds = "2021-04-15")
+dyna_VOC_sw_R1[[2]] <- sum_endpoints(res_3_VOC_sw_R1[[2]], ds = "2021-04-15")
+
+# rm(res_2_sw, res_3_sw, res_2_VOC_sw, res_3_VOC_sw)
+save(dyna_sw_R1, dyna_VOC_sw_R1, file = ("data/intermediate/res_sw_R1.rdata"))
