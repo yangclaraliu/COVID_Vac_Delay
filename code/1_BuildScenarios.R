@@ -92,6 +92,49 @@ for(i in 1:length(euro_inuse)){
   save(params_3_vp, params_3_VOC_vp,
        file = "data/intermediate/params_3_vp_delay.rdata") #this means immune delay
 }
+# 
+# for(i in 1:13){
+#   lapply(params_3_VOC_vp[[i]]$scenarios, "[[", "daily_vac_scenarios") %>%
+#     map(arrange, date) %>%
+#     map(mutate_at, vars(starts_with("Y", ignore.case = T)), cumsum) %>%
+#     bind_rows(.id = "scenario") %>%
+#     select(-starts_with("supply")) %>%
+#     pivot_longer(starts_with("Y")) %>%
+#     separate(name, into = c("ag", "dose")) %>%
+#     group_by(scenario, date, dose) %>%
+#     summarise(value = sum(value), .groups = "drop") -> x
+# 
+# 
+#   lapply(params_3_VOC_vp[[i]]$scenarios, "[[", "daily_vac_scenarios") %>%
+#     map(arrange, date) %>%
+#     map(mutate_at, vars(starts_with("supply", ignore.case = T)), cumsum) %>%
+#     bind_rows(.id = "scenario") %>%
+#     dplyr::select(date, starts_with("supply"), -supply_cum) -> y
+# 
+#   y %>% filter(supply > 10000) %>% .[1,] %>% pull(date) -> t1
+#   y %>% filter(supply_2 > 10000) %>% .[1,] %>% pull(date) -> t2
+# 
+#   print(t2-t1)
+# 
+#   x %>%
+#     left_join(y, by = "date") %>%
+#     filter(date >= "2021-01-01") %>%
+#     mutate(pop =  vac_denom %>% filter(iso3c == euro_inuse[i]) %>% pull(tot),
+#            value = value/pop,
+#            supply = supply/pop,
+#            supply_2 = supply_2/pop) %>%
+#     ggplot(., aes(x = date, y = value, group = dose, color = dose)) +
+#     geom_line() +
+#     geom_line(aes(y = supply), color = "black", linetype = 2) +
+#     geom_line(aes(y = supply_2), color = "black", linetype = 3) +
+#     facet_wrap(~scenario, nrow = 1) +
+#     labs(title = euro_inuse[i]) -> p
+# 
+#   ggsave(paste0("figs/supplemental/Delay_24wk_Sanity/",i,
+#                 "_",euro_inuse[i],".png"),
+#          p, width = 20, height = 6)
+# }
+
 
 
 # sanity check

@@ -442,7 +442,7 @@ plot_grid(p2 + labs(subtitle = "w/ VOC\n1st dose wane at 360 days"),
           nrow = 2, byrow =T) -> p7
 
 # update to `fig4_v4.png` on 2022/02/03 upon R1
-ggsave("figs/fig4_v4.png", p7, width = 12, height = 9)
+ggsave("figs/fig4_v5.png", p7, width = 12, height = 9)
 
 res_sw[["res_3_sw"]] %>% 
   filter(compartment %in% c("death", "death_o")) %>%
