@@ -52,6 +52,46 @@ tmp %>%
 
 ggsave("figs/R1_low_supply.png", p, width = 12, height = 6)
 
+#### extract non_S ####
+lapply(1:13, function(x){
+  params_3_vp[[x]]$res[[1]] %>% 
+    cm_simulate%>% 
+    .[["dynamics"]] %>% 
+    # bind_rows(.id = "scenarios") %>% 
+    filter(compartment == "S") %>% 
+    group_by(t, population) %>% 
+    summarise(value = sum(value), .groups = "drop") %>% 
+    left_join(model_selected_ur[,c("country_name", "t")],
+              by = c("population" = "country_name")) %>% 
+    mutate(date = ymd("2019-12-01") + t.x + t.y) %>% 
+    filter(t.x == 0 | date == "2021-03-01") %>% 
+    bind_cols(tag = c("start","end")) %>% 
+    dplyr::select(population, tag, value) %>% 
+    pivot_wider(names_from = tag, values_from = value) %>% 
+    mutate(non_S = 1 - end/start)
+  
+}) %>% bind_rows() -> non_S
+
+non_S %>% arrange(non_S)
+
+cm_populations %>% 
+  mutate(iso3c = countrycode(name, "country.name", "iso3c")) -> pop_struct
+
+pop_struct %>% 
+  filter(iso3c %in% euro_inuse) %>% 
+  separate(age, sep = "-", into = c("LL", "UL")) %>% 
+  mutate(LL = parse_number(LL),
+         ag = case_when(LL < 20 ~ "c",
+                        LL >= 20 & LL < 60 ~ "a",
+                        LL >= 60 ~ "oa")) %>% 
+  group_by(name) %>% 
+  mutate(tot = sum(f) + sum(m)) %>% 
+  group_by(name, iso3c, ag, tot) %>% 
+  summarise(tot_group = sum(f) + sum(m)) %>% 
+  mutate(p = tot_group/tot) %>% 
+  filter(ag == "oa") %>% arrange(p)
+
+
 #### sensitivity analyses around wv #####
 # Loading dyna_sw_R1 and dyna_VOC_sw_R1
 load("data/intermediate/res_sw_R1.rdata")
@@ -193,20 +233,29 @@ params_3_VOC_vp_add_delays <- params_3_VOC_vp
 # write_rds(SDelay_outcome, "data/R1_SDelay_outcome.rds")
 
 # 
-# i = 2
-# res_baseline[[i]] %>% filter(compartment %in% c("death_o", "death")) %>% 
-#   group_by(scenario, population) %>% 
-#   summarise(value = sum(value), .groups = "drop") %>% 
-#   mutate(scenario = factor(scenario, levels = c(1:5, 7, 6), labels = strategy_labels)) %>% 
-#   group_by(population) %>% mutate(rk = rank(value)) %>%
-#   left_join(res_baseline[[i]] %>% filter(compartment %in% c("death_o", "death")) %>% 
-#               group_by(scenario, population) %>% 
-#               summarise(value = sum(value), .groups = "drop") %>% 
-#               filter(scenario == 7) %>% 
-#               rename(B1 = value) %>% dplyr::select(-scenario),
-#             by = "population") %>% 
-#   mutate(relative = value/B1 - 1) %>% 
-#   filter(rk == 1) #%>% pull(scenario) %>% table
+i = 2
+res_baseline[[i]] %>% filter(compartment %in% c("death_o", "death")) %>%
+  group_by(scenario, population) %>%
+  summarise(value = sum(value), .groups = "drop") %>%
+  mutate(scenario = factor(scenario, levels = c(1:5, 7, 6), labels = strategy_labels)) %>%
+  group_by(population) %>% mutate(rk = rank(value)) %>%
+  left_join(res_baseline[[i]] %>% filter(compartment %in% c("death_o", "death")) %>%
+              group_by(scenario, population) %>%
+              summarise(value = sum(value), .groups = "drop") %>%
+              filter(scenario == 7) %>%
+              rename(B1 = value) %>% dplyr::select(-scenario),
+            by = "population") %>%
+  mutate(relative = value/B1 - 1) %>%
+  filter(rk == 1) %>% 
+  left_join(non_S, by = "population") %>% 
+  group_by(scenario, )
+  
+  ggplot(., aes(x = scenario, y = non_S)) +
+  geom_boxplot()
+  #%>% pull(scenario) %>% table
+
+
+
 # 
 # 
 # 

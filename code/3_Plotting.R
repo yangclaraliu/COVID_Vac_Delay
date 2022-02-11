@@ -394,7 +394,7 @@ outcome_by_strategy <- function(res_list, tab_name, outcome){
           # title = element_text(size = 18),
           plot.subtitle = element_text(size = 16)) +
     labs(x = "Dosing Interval Strategy",
-         subtitle = st,
+         subtitle = st,""
         #  title = "Relative Differences in Cumulative Outcome Compared to B1",
          y = "%Differences Compared to B1") -> p
 
@@ -406,7 +406,8 @@ p2 <- outcome_by_strategy(res_baseline, "res_3_VOC", "death")
 title <- ggdraw() + draw_label("Relative Differences in Cumulative COVID-19 Mortality Compared to B1\nwv = 360 days",
                                fontface = "bold", x = 0, hjust = 0, size = 18)
 p3 <- plot_grid(title, p2,p1,ncol = 1, rel_heights = c(0.1, 1,1), labels = c("","(A)","(B)"),
-               label_fontface = "bold", label_size = 20)
+               label_fontface = "bold", label_size = 20)""
+print("hello")
 
 res_baseline[["res_3"]] %>% 
   filter(compartment %in% c("death", "death_o")) %>%
