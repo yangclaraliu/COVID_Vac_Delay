@@ -1,7 +1,7 @@
-#load(paste0(path_dropbox, "params_vp_all.rdata"))
-load("data/intermediate/params_vp_18.rdata")
+# load(paste0(path_dropbox, "params_vp_all.rdata"))
+# load("data/intermediate/params_vp_18.rdata")
 
-n_scenario <- params_3_vp[[1]]$res %>% length
+n_scenario <- params_3_VOC_vp[[1]]$res %>% length
 
 CJ(ve_i = seq(0.35,0.95,0.1), v2e_i = seq(0.35,0.95,0.1),
    ve_d_o = seq(0.35,0.95,0.1), v2e_d_o = seq(0.35,0.95,0.1)) %>% 
@@ -20,11 +20,14 @@ n_country <- which(model_selected_ur$iso3c %in% euro_inuse)
 # no_cores <- detectCores() - 1
 # cluster <- makeCluster(no_cores)
 # plan(multisession)
-pb <- progress_bar$new(total = n_vac*nrow(model_selected_ur))
+pb <- progress_bar$new(total = n_vac*length(euro_inuse))
 res_3_ve <- res_3_VOC_ve <- list()
+
 for(i in n_country){
+# for(i in 1){
   res_3_ve[[i]] <- res_3_VOC_ve[[i]] <- list()
   for(j in 1:n_vac){
+  # for(j in 1){
     params_3_vp[[i]]$res %>% 
       map(~update_vac_char(.,
                            ve_i   = ve_new$ve_i[j],  
@@ -71,8 +74,8 @@ for(i in n_country){
 }
 # write_rds(res_3_ve, paste0(path_dropbox,"intermediate/SA_VE_120.rds"))
 # write_rds(res_3_VOC_ve, paste0(path_dropbox,"intermediate/SA_VE_120_VOC.rds"))
-write_rds(res_3_ve, paste0("data/intermediate/SA_VE_360.rds"))
-write_rds(res_3_VOC_ve, paste0("data/intermediate/SA_VE_360_VOC.rds"))
+write_rds(res_3_ve, paste0("data/intermediate/SA_VE_360_v4.rds"))
+write_rds(res_3_VOC_ve, paste0("data/intermediate/SA_VE_360_VOC_v4.rds"))
 
 pb <- progress_bar$new(total = n_vac*nrow(model_selected_ur))
 res_3_ve <- res_3_VOC_ve <- list()
@@ -125,8 +128,8 @@ for(i in n_country){
 }
 # write_rds(res_3_ve, paste0(path_dropbox,"intermediate/SA_VE_120.rds"))
 # write_rds(res_3_VOC_ve, paste0(path_dropbox,"intermediate/SA_VE_120_VOC.rds"))
-write_rds(res_3_ve, paste0("data/intermediate/SA_VE_120.rds"))
-write_rds(res_3_VOC_ve, paste0("data/intermediate/SA_VE_120_VOC.rds"))
+write_rds(res_3_ve, paste0("data/intermediate/SA_VE_120_v4.rds"))
+write_rds(res_3_VOC_ve, paste0("data/intermediate/SA_VE_120_VOC_v4.rds"))
 
 
 

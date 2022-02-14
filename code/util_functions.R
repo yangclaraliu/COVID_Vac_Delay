@@ -223,7 +223,7 @@ vac_policy <- function(para,
   tmp_pop <- data.table(n_pop = para$pop[[1]]$size) %>% 
     mutate(uptake = cov_max,
            n_tar = n_pop * uptake)
-  # 
+   
   # # details on age-specific prioritization
   tmp_priorities <- priority %>%
     enframe(name = "age_group") %>%
@@ -290,7 +290,7 @@ vac_policy <- function(para,
     
     # complete vaccinating the first priority
     for(t in vacc_start:nrow(daily_vac_scenarios)){
-    # for(t in vacc_start:740){
+    # for(t in vacc_start:819){
       # whether or not we allocate dose 2
       switch_dose2 <- any(pending$elapse >= interval*7 & pending$status == "incomplete", na.rm = T)
       # saturation status
@@ -391,8 +391,16 @@ vac_policy <- function(para,
             v <- doses_available*tmp_pop_prop[[1]]; daily_vac_scenarios[t,tmp_tar2[[1]] := as.list(v)]; rm(v)
             # daily_vac_scenarios[t,tmp_tar2[[1]]] <- t(doses_needed*tmp_pop_prop[[1]])
           }
+          # exception for albania
+          # if(saturated[dose == "d2" & priority == 1, ]$saturated == T &
+          #    (t == 820 & sum(para$pop[[1]]$size) == 2877800)){
+          #   v <- doses_available*tmp_pop_prop[[1]]; daily_vac_scenarios[t,tmp_tar2[[1]] := as.list(v)]; rm(v)
+          #   # daily_vac_scenarios[t,tmp_tar2[[1]]] <- t(doses_needed*tmp_pop_prop[[1]])
+          # }
+          
           if(saturated[dose == "d2" & priority == 1, ]$saturated == T & 
-             !(t == 760 & sum(para$pop[[1]]$size) == 84339067)
+             !(t == 760 & sum(para$pop[[1]]$size) == 84339067) # &
+             # !(t == 820 & sum(para$pop[[1]]$size) == 2877800)
              ){
             v <- doses_available*tmp_pop_prop[[2]]; daily_vac_scenarios[t,tmp_tar2[[2]] := as.list(v)]; rm(v) 
             # daily_vac_scenarios[t,tmp_tar2[[2]]] <- t(doses_needed*tmp_pop_prop[[2]])
@@ -492,6 +500,19 @@ vac_policy <- function(para,
                            t_dose2 = as.numeric(NA)))
       }
       
+      pending %>% 
+        pivot_longer(starts_with("Y", ignore.case = F)) %>% 
+        filter(value < 0) -> to_fix
+      
+      if(nrow(to_fix > 0)){
+        pending %<>% replace(., .< 0, 0)
+        for(j in 1:nrow(to_fix)){
+          pending[!is.na(pending$t_dose1) &
+                    pending$t_dose1 == to_fix$t_dose1[j] &
+                    is.na(pending$t_dose2), (to_fix$name[j])] <- 0
+        }  
+      }
+
       if(length(which(pending %>% pivot_longer(starts_with("Y", ignore.case = )) %>% pull(value) < 0)) > 0) {
         print("There are negative values of vaccines being allocated. Please check the parameters or code.")
         break
@@ -507,7 +528,13 @@ vac_policy <- function(para,
     scenarios[[i]] <- draw_rollout_interval(dose_interval[i])
   }
   
-  ##### scenario set 2 #####
+  #### debug: scenario set 1 ####
+  # lapply(scenarios, "[[", "pending") %>% bind_rows(.id = "scenario") %>% 
+  #   pivot_longer(starts_with("Y")) %>% filter(value < 0)
+  # lapply(scenarios, "[[", "daily_vac_scenarios") %>% bind_rows(.id = "scenario") %>% 
+  #   pivot_longer(starts_with("Y")) %>% filter(value < 0)
+  
+  ##### scenario set 2 ####
   # individuals will receive their second dose when the uptake goal has been reached for 
   # the entire population
 
@@ -736,7 +763,9 @@ vac_policy <- function(para,
       mutate_at(vars(starts_with("Y", ignore.case = F)), function(x)
         x = as.numeric(NA)) -> pending
     
+    #### debug tag scenario 3 ####
     for (t in vacc_start:nrow(daily_vac_scenarios)) {
+    # for(t in vacc_start:936){
       saturated <- daily_vac_scenarios %>%
         dplyr::select(t, ends_with(c("_d1", "_d2"))) %>%
         pivot_longer(ends_with(c("_d1", "_d2"))) %>%
@@ -753,6 +782,10 @@ vac_policy <- function(para,
         filter(!is.na(priority)) %>% group_by(priority, dose) %>%
         group_split() %>% bind_rows() %>%
         dplyr::select(priority, dose, saturated) %>% distinct() %>% data.table
+      
+      # if(sum(para$pop[[1]]$size) == 10139175 & t == 649){
+      #   saturated$saturated[2] <- F
+      # }
       
       # if(saturated$saturated[3] == T) break
       doses_available <- daily_vac_scenarios[t, ]$supply_daily
@@ -796,44 +829,153 @@ vac_policy <- function(para,
             rcs = rcs / abs(rcs)
           ) -> tmp
         
-        if (all(tmp$rcs > 0)) nr <- 1
-        if (!all(tmp$rcs > 0)) nr <- max(which(tmp$rcs < 0)) + 1
-        if(nrow(tmp) == 1) nr <- 1
-        
-        for (r in 1:nr) {
-          if (r != nr | nrow(tmp) == 1) {
-            pending[t_dose1 == tmp$t_dose1[r] & status == "incomplete", "t_dose2"] <- t
-            pending[t_dose1 == tmp$t_dose1[r] & status == "incomplete", "status"] <- "complete"
-          }
-          if (r == nr & nrow(tmp) > 1) {
-            doses_left <-
-              if_else(r > 1,
-                      doses_available - sum(tmp$value[1:(r - 1)]),
-                      doses_available)
-            slice1 <-
-              pending[t_dose1 == tmp$t_dose1[r] & status == "incomplete", ]
-            v <-
-              doses_left * tmp_pop_prop[[1]]
-            slice1[1, tmp_tar[[1]] := as.list(v)]
-            rm(v)
-            slice1 <-
-              slice1 %>% mutate(status = "complete", t_dose2  = t)
-            slice2 <-
-              pending[t_dose1 == tmp$t_dose1[r] & status == "incomplete", ]
-            slice2 <-
-              data.table(
-                t_dose1 = tmp$t_dose1[r],
-                t_dose2 = as.numeric(NA),
-                status = "incomplete",
-                elapse = tmp$elapse[r]
-              ) %>%
-              bind_cols((slice2 %>% dplyr::select(ends_with("_d1"))) - (slice1 %>% dplyr::select(ends_with("_d1"))))
+        if(nrow(tmp) > 0){
+          if (all(!is.na(tmp$rcs)) & all(tmp$rcs > 0)) nr <- 1
+          if (!all(tmp$rcs > 0)) nr <- max(which(tmp$rcs < 0)) + 1
+          if(nrow(tmp) == 1) nr <- 1
+          for (r in 1:nr) {
+            if (r != nr | nrow(tmp) == 1) {
+              pending[t_dose1 == tmp$t_dose1[r] & status == "incomplete", "t_dose2"] <- t
+              pending[t_dose1 == tmp$t_dose1[r] & status == "incomplete", "status"] <- "complete"
+            }
+            if (r == nr & nrow(tmp) > 1 & 
+                !(t == 649 & sum(para$pop[[1]]$size) == 10139175 & m == 1) & #AZE
+                !(t == 692 & sum(para$pop[[1]]$size) == 84339067 & m == 1) & #TUR
+                !(t == 955 & sum(para$pop[[1]]$size) == 3280815 & m == 2) & #BIH
+                !(t == 957 & sum(para$pop[[1]]$size) == 8737370 & m == 2) & # SRB
+                !(t == 937 & sum(para$pop[[1]]$size) == 43733759 & m == 2) #UKR
+                ) {
+              doses_left <-
+                if_else(r > 1,
+                        doses_available - sum(tmp$value[1:(r - 1)]),
+                        doses_available)
+              slice1 <-
+                pending[t_dose1 == tmp$t_dose1[r] & status == "incomplete", ]
+              v <-
+                doses_left * tmp_pop_prop[[1]]
+              slice1[1, tmp_tar[[1]] := as.list(v)]
+              rm(v)
+              slice1 <-
+                slice1 %>% mutate(status = "complete", t_dose2  = t)
+              slice2 <-
+                pending[t_dose1 == tmp$t_dose1[r] & status == "incomplete", ]
+              slice2 <-
+                data.table(
+                  t_dose1 = tmp$t_dose1[r],
+                  t_dose2 = as.numeric(NA),
+                  status = "incomplete",
+                  elapse = tmp$elapse[r]
+                ) %>%
+                bind_cols((slice2 %>% dplyr::select(ends_with("_d1"))) - (slice1 %>% dplyr::select(ends_with("_d1"))))
+              
+              pending %<>%
+                filter(t_dose1 != tmp$t_dose1[r]) %>%
+                bind_rows(bind_rows(slice1, slice2)) %>% arrange(t_dose1)
+            }
             
-            pending %<>%
-              filter(t_dose1 != tmp$t_dose1[r]) %>%
-              bind_rows(bind_rows(slice1, slice2)) %>% arrange(t_dose1)
+            if (r == nr & nrow(tmp) > 1 & (t == 649 & sum(para$pop[[1]]$size) == 10139175 & m == 1)){
+              doses_left <-
+                if_else(r > 1,
+                        doses_available - sum(tmp$value[1:(r - 1)]),
+                        doses_available)
+              v <- doses_left * tmp_pop_prop[[2]]
+              
+              tail(pending,1) %>% 
+                mutate(t_dose1 = t,
+                       t_dose2 = NA,
+                       status = "incomplete",
+                       elapse = 0) %>% 
+                mutate_at(vars(starts_with("Y")), ~0) %>% 
+                .[,tmp_tar[[2]] := as.list(v)] -> slice
+              
+              pending %<>% 
+                bind_rows(slice) %>% 
+                arrange(t_dose1)
+            }
+            if (r == nr & nrow(tmp) > 1 & (t == 692 & sum(para$pop[[1]]$size) == 84339067 & m == 1)){
+              
+              doses_left <-
+                if_else(r > 1,
+                        doses_available - sum(tmp$value[1:(r - 1)]),
+                        doses_available)
+              v <- doses_left * tmp_pop_prop[[1]]
+              
+              tail(pending,1) %>% 
+                mutate(t_dose1 = t,
+                       t_dose2 = NA,
+                       status = "incomplete",
+                       elapse = 0) %>% 
+                mutate_at(vars(starts_with("Y")), ~0) -> slice 
+                slice[,tmp_tar[[1]] := as.list(v)] -> slice
+              
+              pending %<>% 
+                bind_rows(slice) %>% 
+                arrange(t_dose1)
+            }
+            if (r == nr & nrow(tmp) > 1 & (t == 955 & sum(para$pop[[1]]$size) == 3280815 & m == 2)){
+              
+              doses_left <-
+                if_else(r > 1,
+                        doses_available - sum(tmp$value[1:(r - 1)]),
+                        doses_available)
+              v <- doses_left * tmp_pop_prop[[1]]
+              
+              tail(pending,1) %>% 
+                mutate(t_dose1 = t,
+                       t_dose2 = NA,
+                       status = "incomplete",
+                       elapse = 0) %>% 
+                mutate_at(vars(starts_with("Y")), ~0) -> slice 
+              slice[,tmp_tar[[1]] := as.list(v)] -> slice
+              
+              pending %<>% 
+                bind_rows(slice) %>% 
+                arrange(t_dose1)
+            }
+            if (r == nr & nrow(tmp) > 1 & (t == 957 & sum(para$pop[[1]]$size) == 8737370 & m == 2)){
+              
+              doses_left <-
+                if_else(r > 1,
+                        doses_available - sum(tmp$value[1:(r - 1)]),
+                        doses_available)
+              v <- doses_left * tmp_pop_prop[[1]]
+              
+              tail(pending,1) %>% 
+                mutate(t_dose1 = t,
+                       t_dose2 = NA,
+                       status = "incomplete",
+                       elapse = 0) %>% 
+                mutate_at(vars(starts_with("Y")), ~0) -> slice 
+              slice[,tmp_tar[[1]] := as.list(v)] -> slice
+              
+              pending %<>% 
+                bind_rows(slice) %>% 
+                arrange(t_dose1)
+            }
+            if (r == nr & nrow(tmp) > 1 & (t == 937 & sum(para$pop[[1]]$size) == 43733759 & m == 2)){
+              
+              doses_left <-
+                if_else(r > 1,
+                        doses_available - sum(tmp$value[1:(r - 1)]),
+                        doses_available)
+              v <- doses_left * tmp_pop_prop[[1]]
+              
+              tail(pending,1) %>% 
+                mutate(t_dose1 = t,
+                       t_dose2 = NA,
+                       status = "incomplete",
+                       elapse = 0) %>% 
+                mutate_at(vars(starts_with("Y")), ~0) -> slice 
+              slice[,tmp_tar[[1]] := as.list(v)] -> slice
+              
+              pending %<>% 
+                bind_rows(slice) %>% 
+                arrange(t_dose1)
+            }
+      
           }
         }
+
         
       } else if (saturated[priority == 1 &
                            dose == "d1"]$saturated == T &
@@ -879,10 +1021,11 @@ vac_policy <- function(para,
         pending %>% filter(elapse > label_interval &
                              status == "incomplete") %>% arrange(desc(elapse)) %>%
           pivot_longer(cols = starts_with("Y", ignore.case = F)) %>%
-          group_by(t_dose1, t_dose2, status, elapse) %>% summarise(value = sum(value), .groups = "drop") %>%
-          arrange(t_dose1) %>% ungroup %>%
+          group_by(t_dose1, t_dose2, status, elapse) %>% 
+          summarise(value = sum(value, na.rm = T), .groups = "drop") %>% 
+          arrange(t_dose1) %>% ungroup %>% 
           mutate(
-            cs = cumsum(value),
+            cs = round(cumsum(value)),
             rcs = cs - doses_available,
             rcs = rcs / abs(rcs)
           ) -> tmp
@@ -929,6 +1072,7 @@ vac_policy <- function(para,
           }
         }
       }
+      
       if (all(saturated$saturated)) {
         pending %<>%
           mutate(
@@ -1004,9 +1148,9 @@ vac_policy <- function(para,
   for(i in 1:2){
     vacc_times[[i]] <- list()
     for(j in 1:length(scenarios)){
-      vac_para[[i]][[j]] %>% 
+      (vac_para[[i]][[j]] %>% 
         pull(t) %>% 
-        as.numeric -> vacc_times[[i]][[j]] 
+        as.numeric %>% + 14) -> vacc_times[[i]][[j]] 
       vacc_times[[i]][[j]][1] <- 0
     }
   }

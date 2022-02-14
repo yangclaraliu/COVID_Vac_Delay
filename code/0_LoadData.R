@@ -32,6 +32,7 @@ members_remove <- read_rds(paste0(path_dropbox,
 euro_lmic <- c("ALB","ARM","AZE","BLR","BIH","BGR","GEO","KAZ","XKX","KGZ",
                "MDA","MNE","MKD","RUS","SRB","TJK","TUR","TKM","UKR","UZB")
 euro_inuse <- setdiff(euro_lmic, members_remove)
+euro_inuse <- euro_inuse[euro_inuse!= "XKX"]
 
 # updated contact matrices
 load(paste0(path_dropbox, "contact_all.rdata"))
@@ -42,7 +43,8 @@ load(paste0(path_dropbox, "contact_others.rdata"))
 
 model_selected_ur %<>% 
   mutate(to_replace = iso3c %in% names(contact_all)) %>% 
-  left_join(country_dictionary, c("iso3c" = "iso"))
+  left_join(country_dictionary, c("iso3c" = "iso",
+                                  "country_name"))
 
 tmp <- cm_parameters_SEI3R("Thailand")
 ag_labels <- tmp$pop[[1]]$group_names; rm(tmp)
