@@ -11,7 +11,3 @@ Jong-Hoon Kim,
 [Mark Jit](https://www.lshtm.ac.uk/aboutus/people/jit.mark),
 Kaja Abbas 
 
-
-- code
-- figs
-- 
