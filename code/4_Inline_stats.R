@@ -50,6 +50,11 @@ res_baseline[["res_3_VOC"]] %>%
                         scenario == "B1" ~ 25,
                         scenario == "B2" ~ 50),
          wb = countrycode(population, "country.name", "wb")) -> tmp 
+
+tmp %>% 
+  filter(scenario == "A1") %>% 
+  pull(relative) %>% range
+
   group_by(wb) %>% 
   mutate(rk = rank(relative)) %>% 
   dplyr::select(wb, relative, rk) %>% 
@@ -63,7 +68,7 @@ tmp  %>%
   mutate(rk = rank(relative)) %>% 
   filter(rk == 1)
   
-res_sw$res_3_sw %>% 
+res_sw$res_3_VOC_sw %>% 
     mutate(iso3c = countrycode(population, "country.name", "iso3c")) %>% 
     filter(compartment %in% l,
            iso3c %in% euro_inuse) %>%
@@ -87,7 +92,9 @@ res_sw$res_3_sw %>%
                           scenario == "B1" ~ 25,
                           scenario == "B2" ~ 50),
            wb = countrycode(population, "country.name", "wb")) %>% 
-  group_by(population) %>% mutate(rk = rank(relative)) %>% filter(rk == 1) %>% pull(scenario) %>% table
+  group_by(population) %>% mutate(rk = rank(relative)) %>% 
+  filter(scenario %in% c("A2", "B2")) %>% dplyr::select(population, scenario, rk) %>% pivot_wider(names_from= scenario, values_from = rk)
+  #%>% filter(rk == 1) %>% pull(scenario) %>% table
 
 
 cm_populations %>% 
@@ -109,7 +116,7 @@ pop_structure %>%
          p_a = adults/tot) %>% 
   arrange(p_a)
 
-non_S_3_debug %>% filter(wb %in% euro_inuse) %>%  arrange(p)
+non_S_3_w_debug  %>% filter(wb %in% euro_inuse) %>%  arrange(p) %>% pull(p) %>% range
 
 
 # Russia

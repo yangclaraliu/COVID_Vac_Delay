@@ -10,14 +10,14 @@ library(patchwork)
 
 # load simulated data from Yang
 FGS_VacAllocated = read_rds("data/FGS_VacAllocated.rds")
-res_baseline <- read_rds("data/intermediate/res_baseline_v3.rds")
+res_baseline <- read_rds("data/intermediate/res_baseline_v4.rds")
 # load("data/intermediate/res_baseline.rdata")
 
 # load resources of (QA)LE estimates
 load("data/LE_estimates.rda")
 
 # set path
-econ_path = "C:/Users/Frank.Sandmann/Desktop/WHO-AEFI/" 
+# econ_path = "C:/Users/Frank.Sandmann/Desktop/WHO-AEFI/" 
 
 
 # add back strategies for each dataset ; Yang: "in res_baseline c(1:5,7,6) correspond to c(A1-5,B1-2)"
@@ -69,9 +69,6 @@ res_mort = res_baseline %>%
     ) %>%
   mutate(LEdisc      = value*LEdisc,
          adjQALEdisc = value*adjQALEdisc )
-
-
-
 
 # figure 9 in the report (without VOC); old figure, use with VOC instead
 res_baseline %>% 
@@ -139,7 +136,6 @@ res_baseline %>%
                         labels = c("cases", "hospitalisations", "deaths"), #c("deaths", "hospitalisations", "cases"),
                         breaks=c("cases", "hosp", "death")) #c("death_o", "hosp_i", "cases")) 
   
-
 
 # save
 ggsave(paste0("Fig9_", format(Sys.time(), "%d%b%Y"), 
@@ -359,7 +355,7 @@ p2 / p3 +
 # figure 8 in the report
 
 # plot ratios with VOC
-# p1 = 
+p1 = 
 plot_res_AEFI_incr %>% 
   rename("LEdisc_AEFI"      = "LEdisc",
          "adjQALEdisc_AEFI" = "adjQALEdisc") %>%
@@ -372,9 +368,7 @@ plot_res_AEFI_incr %>%
          adjQALEdiscRatio = ifelse(adjQALEdisc_AEFI == 0, 0, adjQALEdisc/adjQALEdisc_AEFI)) %>%  #/doses_ttl*1000) 
   # only look at non-VOC; results only magnified
   dplyr::filter(.id == "res_3_VOC") %>%
-  filter(AEFImort_nrRatio < 0 | AEFImort_nrRatio < 0 | LEdiscRatio < 0 | adjQALEdiscRatio < 0)
-  
-  
+  # filter(AEFImort_nrRatio < 0 | AEFImort_nrRatio < 0 | LEdiscRatio < 0 | adjQALEdiscRatio < 0) # %>% 
   ggplot(aes(x=strategy, y=AEFImort_nrRatio)) + 
   geom_boxplot(outlier.shape = NA) +
   geom_line(aes(group = country_name), alpha =0.5, colour = "grey") +
@@ -394,7 +388,7 @@ plot_res_AEFI_incr %>%
             aes(x=xpos,y=ypos,hjust=hjustvar,vjust=vjustvar,label=annotateText))
 
 # plot ratios without VOC
-# p2 = 
+p2 = 
   plot_res_AEFI_incr %>% 
   rename("LEdisc_AEFI"      = "LEdisc",
          "adjQALEdisc_AEFI" = "adjQALEdisc") %>%
@@ -407,7 +401,7 @@ plot_res_AEFI_incr %>%
          adjQALEdiscRatio = ifelse(adjQALEdisc_AEFI == 0, 0, adjQALEdisc/adjQALEdisc_AEFI)) %>%  #/doses_ttl*1000) 
   # only look at non-VOC; results only magnified
   dplyr::filter(.id == "res_3") %>%
-  filter(AEFImort_nrRatio < 0 | AEFImort_nrRatio < 0 | LEdiscRatio < 0 | adjQALEdiscRatio < 0)
+  # filter(AEFImort_nrRatio < 0 | AEFImort_nrRatio < 0 | LEdiscRatio < 0 | adjQALEdiscRatio < 0) %>% 
   
   ggplot(aes(x=strategy, y=AEFImort_nrRatio)) + 
   geom_boxplot(outlier.shape = NA) +
@@ -434,8 +428,8 @@ p1 / p2 +
 
 
 # save
-ggsave(paste0("fig5", format(Sys.time(), "%d%b%Y"), "_v1.png"), 
-       path = "figs/", width = 40, height = 40, units = "cm")
+ggsave(paste0("fig5", ".pdf"), 
+       path = "figs/", width = 40, height = 40, units = "cm", dpi = 300)
 
 
 
@@ -540,3 +534,4 @@ res_AEFI %>%
   facet_wrap(~country_name, scales = "free", ncol = 3) +
   labs(x = "Dosing interval strategy",
        y = "Rate of life years lost (per 1 million doses)")
+

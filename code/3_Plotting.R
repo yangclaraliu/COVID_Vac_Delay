@@ -159,7 +159,7 @@ data.frame(strategy = strategy_labels,
   geom_label(x = "2nd", y = 0.85, label = "A4/5", size = 6) +
   geom_label(x = "2nd", y = 0.95, label = "B1/2", size = 6) +
   labs(x = "Dose", 
-       y = "Infection- and Disease-reducing\nVaccine Efficacy\nby Dosing Interval") +
+       y = "Infection- and \nDisease-reducing Vaccine\nEfficacy by Dosing Interval") +
   theme_cowplot() -> p3
 
 
@@ -211,7 +211,7 @@ p6 <- plot_grid(p4,
                 p5, ncol = 2, 
                 rel_widths = c(1,1.5))
 
-ggsave("figs/fig2.png", p6, height = 10, width = 18)
+ggsave("figs/fig2.pdf", p6, height = 10, width = 18, dpi = 300)
  
 #### vaccine supply curves ####
 # params_2_vp[[1]]$scenarios[[i]]$daily_vac_scenarios %>% 
@@ -330,7 +330,7 @@ tmp %>%
 #     wow, this is really good code please use it
 
 
-ggsave("figs/fig3_new.png", p, height = 8, width = 12)
+ggsave("figs/fig3.pdf", p, height = 8, width = 12, dpi = 300)
 
 #### baseline results ####
 # update to `res_baseline_v4.rds` on 2022/02/03 upon R1
@@ -394,7 +394,7 @@ outcome_by_strategy <- function(res_list, tab_name, outcome){
           # title = element_text(size = 18),
           plot.subtitle = element_text(size = 16)) +
     labs(x = "Dosing Interval Strategy",
-         subtitle = st,""
+         subtitle = st,
         #  title = "Relative Differences in Cumulative Outcome Compared to B1",
          y = "%Differences Compared to B1") -> p
 
@@ -407,7 +407,7 @@ title <- ggdraw() + draw_label("Relative Differences in Cumulative COVID-19 Mort
                                fontface = "bold", x = 0, hjust = 0, size = 18)
 p3 <- plot_grid(title, p2,p1,ncol = 1, rel_heights = c(0.1, 1,1), labels = c("","(A)","(B)"),
                label_fontface = "bold", label_size = 20)""
-print("hello")
+# print("hello")
 
 res_baseline[["res_3"]] %>% 
   filter(compartment %in% c("death", "death_o")) %>%
@@ -443,7 +443,7 @@ plot_grid(p2 + labs(subtitle = "w/ VOC\n1st dose wane at 360 days"),
           nrow = 2, byrow =T) -> p7
 
 # update to `fig4_v4.png` on 2022/02/03 upon R1
-ggsave("figs/fig4_v5.png", p7, width = 12, height = 9)
+ggsave("figs/fig4.pdf", p7, width = 12, height = 9, dpi = 300)
 
 res_sw[["res_3_sw"]] %>% 
   filter(compartment %in% c("death", "death_o")) %>%
@@ -466,11 +466,11 @@ ve_new[ve_i == 0.65 & ve_d == 0 & v2e_d == 0] %>%
   select(ve_set) %>% mutate(scenarios = c(NA, 1:5,7,6)) %>% 
   filter(!is.na(scenarios)) -> profiles
 
-# SA_VE_120 <- read_rds(paste0(path_dropbox,"intermediate/SA_VE_120.rds"))
-# SA_VE_VOC_120 <- read_rds(paste0(path_dropbox,"intermediate/SA_VE_120_VOC.rds"))
-# 
-# SA_VE_360 <- read_rds(paste0(path_dropbox,"intermediate/SA_VE_360.rds"))
-# SA_VE_VOC_360 <- read_rds(paste0(path_dropbox,"intermediate/SA_VE_360_VOC.rds"))
+SA_VE_120 <- read_rds("~/GitHub/COVID_Vac_Delay/data/intermediate/SA_VE_120_v4.rds")
+SA_VE_VOC_120 <- read_rds("~/GitHub/COVID_Vac_Delay/data/intermediate/SA_VE_120_VOC_v4.rds")
+
+SA_VE_360 <- read_rds("~/GitHub/COVID_Vac_Delay/data/intermediate/SA_VE_360_v4.rds")
+SA_VE_VOC_360 <- read_rds("~/GitHub/COVID_Vac_Delay/data/intermediate/SA_VE_360_VOC_v4.rds")
 
 SA_VE_360 %>% 
   bind_rows() %>% 
@@ -499,7 +499,7 @@ SA_VE_360 %>%
                             levels = c(1:5,7,6),
                             labels = strategy_labels)) -> tmp
 
-res_baseline_v3[["res_3"]] %>% 
+res_baseline_v4[["res_3"]] %>% 
   filter(compartment %in% c("death", "death_o")) %>%
   group_by(scenario, population, compartment) %>% 
   summarise(value = sum(value)) %>% 
@@ -540,7 +540,7 @@ res_baseline_v3[["res_3"]] %>%
        #  title = "Relative Differences in Cumulative Outcome Compared to B1",
        y = "%Differences Compared to B1") -> p2
 
-SA_VE_360_VOC %>% 
+SA_VE_VOC_360 %>% 
   bind_rows() %>% 
   filter(grepl("death", compartment)) %>% 
   filter(!(compartment == "hosp_voc_i" & VOC == F)) %>% 
@@ -568,7 +568,7 @@ SA_VE_360_VOC %>%
                             levels = c(1:5,7,6),
                             labels = strategy_labels)) -> tmp
 
-res_baseline_v3[["res_3_VOC"]] %>% 
+res_baseline_v4[["res_3_VOC"]] %>% 
   filter(compartment %in% c("death", "death_o"),
          population %in% model_selected_ur$country_name) %>%
   group_by(scenario, population, compartment) %>% 
@@ -616,14 +616,14 @@ p <- plot_grid(title, p1,p2,ncol = 1, rel_heights = c(0.1, 1,1), labels = c("","
                label_fontface = "bold", label_size = 20)
 title <- ggdraw() + draw_label("Relative Differences in Cumulative COVID-19 Mortality Compared to B1\nwv = 360 days",
                                fontface = "bold", x = 0, hjust = 0, size = 18)
-ggsave("figs/supplemental/res_3_dynamic_VE.png", p, width = 10, height = 14)
+ggsave("figs/supplemental/res_3_dynamic_VE_v4.png", p, width = 10, height = 14)
 
 #### SA around VE ####
 # SA_VE_360 %>% bind_rows() %>% filter(grepl("death_o", compartment)) %>% 
 #   group_by(ve_set, scenarios, population) %>% 
 #   summarise(value = sum(V1)) %>% mutate(status = "w/o VOC") %>%  
 #   bind_rows(
-SA_VE_360_VOC  %>% 
+SA_VE_VOC_360  %>% 
               bind_rows() %>% 
               filter(grepl("death", compartment)) %>% 
               filter(!(compartment == "hosp_voc_i" & VOC == F)) %>% 
@@ -667,6 +667,6 @@ SA_VE_360_VOC  %>%
        title = "Sensitivity analysis around first and second doses\ninfection-blocking and disease-reducing VEs",
        y = "Proportional Differences Compared to B1\nRCM") -> p
 
-ggsave("figs/supplemental/SA_VE_VOC_360.png", p, width = 10, height = 15)
+ggsave("figs/supplemental/SA_VE_VOC_360_v4.png", p, width = 10, height = 15)
   
   

@@ -74,23 +74,39 @@ lapply(1:13, function(x){
 
 non_S %>% arrange(non_S)
 
+
+all_euro <- c("Albania, Andorra, Armenia, Austria, Azerbaijan, Belarus, Belgium, Bosnia and Herzegovina, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Georgia, Germany, Greece, Hungary, Iceland, Ireland, Israel, Italy, Kazakhstan, Kyrgyzstan, Latvia, Lithuania, Luxembourg, Malta, Monaco, Montenegro, Netherlands, Norway, Poland, Portugal, Republic of Moldova, Romania, Russian Federation, San Marino, Serbia, Slovakia, Slovenia, Spain, Sweden, Switzerland, Tajikistan, The former Yugoslav Republic of Macedonia, Turkey, Turkmenistan, Ukraine, United Kingdom, Uzbekistan") %>% 
+  strsplit(., ", ") %>% unlist %>% 
+  data.frame(cn = .) %>% 
+  mutate(iso3c = countrycode(cn, "country.name", "iso3c"))
+
 cm_populations %>% 
-  mutate(iso3c = countrycode(name, "country.name", "iso3c")) -> pop_struct
+  mutate(iso3c = countrycode(name, "country.name", "iso3c"),
+         continent = countrycode(name, "country.name", "continent")) -> pop_struct
+
 
 pop_struct %>% 
-  filter(iso3c %in% euro_inuse) %>% 
+  filter(continent == "Europe",
+         location_type == 4) %>% 
+  # filter(iso3c %in% euro_all) %>% 
   separate(age, sep = "-", into = c("LL", "UL")) %>% 
   mutate(LL = parse_number(LL),
          ag = case_when(LL < 20 ~ "c",
                         LL >= 20 & LL < 60 ~ "a",
-                        LL >= 60 ~ "oa")) %>% 
-  group_by(name) %>% 
+                        LL >= 60 ~ "oa"),
+         MIC = if_else(iso3c %in% euro_lmic,
+                       T, F)) %>% 
+  group_by(name, iso3c) %>% 
   mutate(tot = sum(f) + sum(m)) %>% 
-  group_by(name, iso3c, ag, tot) %>% 
+  group_by(name, iso3c, ag, tot, MIC) %>% 
   summarise(tot_group = sum(f) + sum(m)) %>% 
   mutate(p = tot_group/tot) %>% 
-  filter(ag == "oa") %>% arrange(p)
-
+  group_by(ag, MIC) %>% summarise(p_mu = mean(p),
+                                  LL = min(p),
+                                  UL = max(p)) %>% 
+  pivot_longer(cols = c(p_mu, LL, UL)) %>% 
+  pivot_wider(names_from = MIC, values_from = value) %>% View()
+  filter(name == "p_mu")
 
 #### sensitivity analyses around wv #####
 # Loading dyna_sw_R1 and dyna_VOC_sw_R1
@@ -232,59 +248,57 @@ params_3_VOC_vp_add_delays <- params_3_VOC_vp
 # SDelay_outcome[["52_wk_VOC"]] <- get_res_SDelay(m = 2, VOC = T)
 # write_rds(SDelay_outcome, "data/R1_SDelay_outcome.rds")
 
+
+
 # 
-i = 2
-res_baseline[[i]] %>% filter(compartment %in% c("death_o", "death")) %>%
+i = 1
+res_baseline_v4[[i]] %>% filter(compartment %in% c("death_o", "death")) %>%
   group_by(scenario, population) %>%
   summarise(value = sum(value), .groups = "drop") %>%
   mutate(scenario = factor(scenario, levels = c(1:5, 7, 6), labels = strategy_labels)) %>%
   group_by(population) %>% mutate(rk = rank(value)) %>%
-  left_join(res_baseline[[i]] %>% filter(compartment %in% c("death_o", "death")) %>%
+  left_join(res_baseline_v4[[i]] %>% filter(compartment %in% c("death_o", "death")) %>%
               group_by(scenario, population) %>%
               summarise(value = sum(value), .groups = "drop") %>%
               filter(scenario == 7) %>%
               rename(B1 = value) %>% dplyr::select(-scenario),
             by = "population") %>%
   mutate(relative = value/B1 - 1) %>%
-  filter(rk == 1) %>% 
-  left_join(non_S, by = "population") %>% 
-  group_by(scenario, )
-  
-  ggplot(., aes(x = scenario, y = non_S)) +
-  geom_boxplot()
-  #%>% pull(scenario) %>% table
+  # filter(scenario %in% c("B1", "B2")) %>% select(-B1, -value, -rk) %>% pivot_wider(names_from = scenario, values_from = relative) %>% arrange(B2)
+  #filter(rk == 1)
+  filter(scenario == "A1") %>% pull(relative) %>% mean
 
 
 
 # 
 # 
 # 
-# SDelay_outcome <- read_rds("data/R1_SDelay_outcome.rds")
+SDelay_outcome <- read_rds("data/R1_SDelay_outcome.rds")
+
+SDelay_outcome %>%
+  bind_rows(.id = "set") %>%
+  mutate(tag = if_else(is.na(tag), as.character(compartment), tag),
+         tag = substr(tag, 1,4)) %>%
+  separate(set, into = c("SDelay", "dep","VOC")) %>%
+  dplyr::select(-dep) %>%
+  mutate(VOC = if_else(is.na(VOC), F, T)) -> p_tab
+
 # 
-# SDelay_outcome %>% 
-#   bind_rows(.id = "set") %>%
-#   mutate(tag = if_else(is.na(tag), as.character(compartment), tag),
-#          tag = substr(tag, 1,4)) %>% 
-#   separate(set, into = c("SDelay", "dep","VOC")) %>% 
-#   dplyr::select(-dep) %>% 
-#   mutate(VOC = if_else(is.na(VOC), F, T)) -> p_tab
 # 
-# 
-# 
-# p_tab %>% 
-#   filter(VOC == T, tag == "deat", SDelay == 52) %>% 
-#   group_by(SDelay, VOC, iso3c, country_name) %>% mutate(rk = rank(value)) %>% 
-#   filter(rk == 1) %>% arrange(iso3c) %>% 
-#   left_join(p_tab 
-#             %>% 
-#               filter(VOC == T, tag == "deat", scenario == 7, SDelay == 52) %>% 
-#               dplyr::select(-scenario) %>% 
-#               rename(B1 = value) %>% 
-#               ungroup %>% 
-#               select(iso3c, B1),
-#             by = "iso3c") %>% 
-#   mutate(relative = value/B1 - 1)
-# 
+p_tab %>%
+  filter(VOC == T, tag == "deat", SDelay == 12) %>%
+  group_by(SDelay, VOC, iso3c, country_name) %>% mutate(rk = rank(value)) %>%
+  filter(rk == 1) %>% arrange(iso3c) %>%
+  left_join(p_tab
+            %>%
+              filter(VOC == T, tag == "deat", scenario == 7, SDelay == 52) %>%
+              dplyr::select(-scenario) %>%
+              rename(B1 = value) %>%
+              ungroup %>%
+              select(iso3c, B1),
+            by = "iso3c") %>%
+  mutate(relative = value/B1 - 1)
+
 # 
 # 
 # p_tab %>% 
@@ -538,3 +552,17 @@ res_baseline[[i]] %>% filter(compartment %in% c("death_o", "death")) %>%
 #          p, width = 20, height = 6)
 # }
  
+  
+#### vac cov comparison ####
+owid_vac %>% 
+    group_by(wb) %>% 
+    mutate(date_max = max(date)) %>% 
+    filter(date == date_max,
+           wb %in% all_euro$iso3c) %>% 
+    mutate(con = countrycode(iso_code , "iso3c", "continent")) %>% 
+    filter(con == "Europe") %>% 
+    mutate(MIC = if_else(iso_code %in% euro_lmic, T, F)) %>% 
+    dplyr::select(location, iso_code, date, people_vaccinated_per_hundred, MIC) %>% 
+    rename(cov = people_vaccinated_per_hundred) %>% 
+    group_by(MIC) %>% 
+    summarise(t = mean(cov, na.rm = T))
