@@ -623,7 +623,7 @@ ggsave("figs/supplemental/res_3_dynamic_VE_v4.png", p, width = 10, height = 14)
 #   group_by(ve_set, scenarios, population) %>% 
 #   summarise(value = sum(V1)) %>% mutate(status = "w/o VOC") %>%  
 #   bind_rows(
-SA_VE_VOC_360  %>% 
+SA_VE_360  %>% 
               bind_rows() %>% 
               filter(grepl("death", compartment)) %>% 
               filter(!(compartment == "hosp_voc_i" & VOC == F)) %>% 
